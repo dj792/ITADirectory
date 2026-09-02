@@ -86,6 +86,18 @@ export default async function DirectoryPage() {
  * letting a development list pass for the live membership.
  */
 function SourceNote({ directory }: { directory: Awaited<ReturnType<typeof loadDirectory>> }) {
+  // A live read was attempted and failed. Say so, and say what to do — this
+  // list is local data wearing a live directory's clothes.
+  if (directory.source.error) {
+    return (
+      <>
+        <strong className="text-white">Not showing live data.</strong>{" "}
+        {directory.source.error} Showing the local copy meanwhile
+        {directory.members.length > 0 ? ` (${directory.members.length} members).` : "."}
+      </>
+    );
+  }
+
   if (directory.source.kind !== "sheet") {
     return (
       <>

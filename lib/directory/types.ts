@@ -47,5 +47,12 @@ export type Directory = {
     sheetUrl: string | null;
     /** When this snapshot was read (ISO). */
     readAt: string;
+    /**
+     * Set when a live sheet read was attempted and FAILED. The list then came
+     * from the fixture (or is empty), and the footer says so — a directory
+     * quietly serving stale local data while looking live is worse than one
+     * that admits it.
+     */
+    error?: string;
   };
 };

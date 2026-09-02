@@ -31,9 +31,71 @@ const TTL_MS = 5 * 60 * 1000;
 export async function loadDirectory(): Promise<Directory> {
   if (cache && Date.now() - cache.at < TTL_MS) return cache.data;
 
-  const data = useMock() ? loadFromFixture() : await loadFromSheet();
+  const data = useMock() ? loadFromFixture() : await loadFromSheetOrFallBack();
   cache = { at: Date.now(), data };
   return data;
+}
+
+/**
+ * A failed sheet read must not take the page down.
+ *
+ * The most likely cause by far is the sheet not being shared with the service
+ * account yet — Google answers that with a 404 "Requested entity was not
+ * found", which is indistinguishable from a typo'd ID and says nothing about
+ * permissions. Quota exhaustion and a malformed key land here too.
+ *
+ * So: fall back to the fixture if one is present, keep serving, and record WHY
+ * on `source.error` so the footer can say the list isn't live. The page stating
+ * plainly that it's showing local data beats both a 500 and — worse — silently
+ * passing a stale local file off as the membership.
+ *
+ * The failure is NOT cached for the usual 5 minutes by the caller's clock alone:
+ * it is, deliberately, so a Google outage doesn't turn every page view into
+ * another failing round trip. Fix the cause and the next read after the TTL
+ * picks it up; `invalidateDirectory()` forces it sooner.
+ */
+async function loadFromSheetOrFallBack(): Promise<Directory> {
+  try {
+    return await loadFromSheet();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("Directory sheet read failed:", message);
+
+    const fallback = loadFromFixture();
+    return {
+      ...fallback,
+      source: { ...fallback.source, error: explain(message) },
+    };
+  }
+}
+
+/**
+ * Turn Google's message into the thing to actually go and do. "Requested entity
+ * was not found" is technically accurate and practically useless — it's what
+ * you get for both a wrong ID and an unshared sheet, and the second is far more
+ * common.
+ */
+function explain(message: string): string {
+  if (/not found|404/i.test(message)) {
+    return (
+      `The directory sheet couldn't be read — most likely it hasn't been shared ` +
+      `with ${process.env.GOOGLE_SA_EMAIL || "the service account"} (Viewer access), ` +
+      `or DIRECTORY_SHEET_ID points somewhere else.`
+    );
+  }
+  if (/403|permission/i.test(message)) {
+    return (
+      `Access to the directory sheet was refused — share it (Viewer) with ` +
+      `${process.env.GOOGLE_SA_EMAIL || "the service account"}.`
+    );
+  }
+  if (/rate limit|429|quota/i.test(message)) {
+    return "Google Sheets rate limit reached. This clears on its own within a minute.";
+  }
+  if (/DECODER|private key|token exchange/i.test(message)) {
+    return "The Google service-account key looks malformed — check GOOGLE_SA_PRIVATE_KEY.";
+  }
+  return `The directory sheet couldn't be read: ${message}`;
 }
 
 /** Drop the cache — for a future "refresh" button or webhook. */

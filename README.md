@@ -21,15 +21,29 @@ serves. `components/BrandMark.tsx` falls back to a typeset "ITA" wordmark if
 
 ## Running it locally
 
+**Double-click `RunLocal.command`.** It installs anything missing, writes a
+local `.env.local` on first run (including a freshly generated `AUTH_SECRET`),
+starts the server, and opens http://localhost:3000. Stop it with Ctrl+C or by
+closing the window.
+
+Edits to files in this folder appear in the browser a second or two later — no
+restart, no deploy.
+
+With no Google credentials in `.env.local`, local runs read the CSV in `data/`
+(the real 203-member export) rather than the live sheet. To point local at the
+sheet, add `DIRECTORY_SHEET_ID`, `GOOGLE_SA_EMAIL` and `GOOGLE_SA_PRIVATE_KEY`
+— see `.env.local.example`.
+
+<details>
+<summary>Prefer the terminal?</summary>
+
 ```bash
 npm install
-cp .env.local.example .env.local   # then fill in AUTH_SECRET at minimum
+cp .env.local.example .env.local   # set AUTH_SECRET and AUTH_TRUST_HOST=true
 npm run dev
 ```
 
-With no Google credentials configured the app reads the local CSV fixture in
-`data/`, and sign-in links are printed to the terminal instead of emailed — so
-the whole thing runs with nothing but `AUTH_SECRET` and `AUTH_TRUST_HOST=true`.
+</details>
 
 ## Commands
 
