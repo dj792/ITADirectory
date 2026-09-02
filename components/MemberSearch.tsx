@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import FilterSelect from "@/components/FilterSelect";
 import { applyFilters, EMPTY_FILTERS, type Filters } from "@/lib/directory/search";
 import type { Directory, Member } from "@/lib/directory/types";
 
@@ -44,13 +45,13 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
 
         {/* Both dropdowns AND with each other and with the text box. */}
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <Select
+          <FilterSelect
             label="Membership level"
             value={filters.membershipLevel}
             options={directory.facets.membershipLevel}
             onChange={(v) => set({ membershipLevel: v })}
           />
-          <Select
+          <FilterSelect
             label="Category"
             value={filters.category}
             options={directory.facets.category}
@@ -167,36 +168,6 @@ function href(url: string): string {
 /** Show the domain without the scheme — the scheme is noise on a card. */
 function display(url: string): string {
   return url.replace(/^https?:\/\//i, "").replace(/\/$/, "");
-}
-
-function Select({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (v: string) => void;
-}) {
-  return (
-    <label className="block">
-      <span className="sr-only">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-hair bg-white px-3 py-2.5 text-[14px] text-fg focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-      >
-        <option value="">{label}: all</option>
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
 }
 
 function SearchIcon() {
