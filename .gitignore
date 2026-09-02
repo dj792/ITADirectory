@@ -1,0 +1,39 @@
+# dependencies
+/node_modules
+
+# next
+/.next/
+/out/
+
+# production
+/build
+
+# env / secrets — NEVER commit
+.env
+.env*.local
+*.env
+vercel-import.env
+*.pem
+service-account*.json
+gcp-key*.json
+client_secret*.json
+*credentials*.json
+
+# internal docs (keep out of public repo)
+CLAUDE.md
+
+# LOCAL MEMBER DATA — never commit. data/ holds the CSV fixture used to build
+# the UI without hitting Google; it carries real member emails.
+/data
+*.csv
+*.xlsx
+
+# misc
+.DS_Store
+*.log
+.vercel
+next-env.d.ts
+tsconfig.tsbuildinfo
+
+# local one-click deploy script (not part of the app)
+*.command

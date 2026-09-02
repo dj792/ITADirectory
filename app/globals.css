@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  ITA palette, taken from italliance.com's computed styles rather than guessed:
+  primary blue rgb(1,118,189), body text rgb(50,50,50), deep blue rgb(1,70,112),
+  warm off-white rgb(247,247,243). Declared as RGB channel triplets so
+  Tailwind's /opacity modifiers keep working (bg-panel/80, ring-accent/30).
+
+  LIGHT ONLY. The marketing site has no dark mode, and inventing a dark ITA
+  palette would mean shipping brand colors nobody at ITA approved. If dark mode
+  is ever wanted, it needs their sign-off, not a guess here.
+*/
+:root {
+  color-scheme: light;
+  --c-bg: 247 247 243; /* #F7F7F3 page ground */
+  --c-panel: 255 255 255; /* #FFFFFF card surface */
+  --c-panel2: 241 241 236; /* secondary surface, derived from the ground */
+  --c-hair: 225 228 232; /* #E1E4E8 hairline */
+  --c-sub: 107 107 107; /* #6B6B6B muted text */
+  --c-fg: 50 50 50; /* #323232 body text */
+  --c-strong: 32 32 32; /* #202020 high-contrast headings */
+  --c-accent: 1 118 189; /* #0176BD ITA blue */
+  --c-accent-dark: 1 70 112; /* #014670 deep blue */
+}
+
+html,
+body {
+  background: rgb(var(--c-bg));
+  color: rgb(var(--c-fg));
+  -webkit-font-smoothing: antialiased;
+}
+
+/*
+  The marketing site sets headings in Montserrat at the SAME weight as body
+  copy (400) and separates them by color and size instead. Matching that is what
+  makes this read as ITA rather than as a generic app with ITA's blue in it.
+*/
+h1,
+h2,
+h3 {
+  color: rgb(var(--c-accent));
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
