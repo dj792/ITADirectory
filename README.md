@@ -42,8 +42,10 @@ the whole thing runs with nothing but `AUTH_SECRET` and `AUTH_TRUST_HOST=true`.
 
 ## Testing mode — currently ON by default
 
-The sign-in page has a red **TESTING MODE ON** button that skips authentication
-and opens the directory, for clicking through without waiting on an email.
+**The search page is the site root: `/`.** While testing mode is on, go straight
+there — middleware lets everyone through before NextAuth is consulted, so the
+directory works even with no auth configured at all. The sign-in page also has a
+red **TESTING MODE ON** button, but you don't need it.
 
 ⚠️ **It is on unless you turn it off.** Anyone with the URL can read every
 member's name and email address. Fine while testing; not fine once the link is

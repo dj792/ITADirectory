@@ -4,7 +4,7 @@ import SignOutButton from "@/components/SignOutButton";
 import SiteFooter from "@/components/SiteFooter";
 import TestingModeBanner from "@/components/TestingModeBanner";
 import { auth } from "@/auth";
-import { isTestingSession } from "@/lib/testing-mode";
+import { isTestingSession, testingModeEnabled } from "@/lib/testing-mode";
 import { loadDirectory } from "@/lib/directory/service";
 
 /**
@@ -14,10 +14,25 @@ import { loadDirectory } from "@/lib/directory/service";
  */
 export const dynamic = "force-dynamic";
 
+/**
+ * Read the session without letting it take the page down.
+ *
+ * `auth()` THROWS when AUTH_SECRET is unset — the same misconfiguration that
+ * makes the auth routes return "There was a problem with the server
+ * configuration". Here it's only used for the greeting in the header, so an
+ * unconfigured server should cost you the email address in the corner, not the
+ * whole directory. The gate is middleware's job, not this call's.
+ */
+async function sessionOrNull() {
+  try {
+    return await auth();
+  } catch {
+    return null;
+  }
+}
+
 export default async function DirectoryPage() {
-  // Middleware already redirected anyone unauthenticated; this read is for the
-  // greeting, not the gate.
-  const [session, directory] = await Promise.all([auth(), loadDirectory()]);
+  const [session, directory] = await Promise.all([sessionOrNull(), loadDirectory()]);
 
   return (
     // min-h-screen + flex-col, with `mt-auto` on the footer: on a search that
@@ -25,11 +40,15 @@ export default async function DirectoryPage() {
     // than floating halfway up it.
     <div className="flex min-h-screen flex-col">
       {/*
-        Keyed off the SESSION, not the env flag: turning TESTING_MODE off
-        doesn't end sessions already issued through the bypass, and those are
-        exactly the ones that still need to announce themselves.
+        Either condition shows it. The FLAG catches the open-directory case
+        (middleware is letting everyone through, session or not). The SESSION
+        catches the other direction: turning the flag off doesn't end sessions
+        already issued through the bypass, and those still need to announce
+        themselves.
       */}
-      {isTestingSession(session?.user?.memberId) && <TestingModeBanner />}
+      {(testingModeEnabled() || isTestingSession(session?.user?.memberId)) && (
+        <TestingModeBanner />
+      )}
 
       {/* White band under the logo, as on italliance.com. */}
       <header className="border-b border-hair bg-panel">
