@@ -40,17 +40,22 @@ the whole thing runs with nothing but `AUTH_SECRET` and `AUTH_TRUST_HOST=true`.
 | `npm run typecheck`| `tsc --noEmit`                                      |
 | `npm run build`    | Production build                                    |
 
-## Testing mode
+## Testing mode — currently ON by default
 
-Set `TESTING_MODE=1` and the sign-in page grows a red **TESTING MODE ON**
-button that skips authentication and opens the directory. Handy for clicking
-through without waiting on an email.
+The sign-in page has a red **TESTING MODE ON** button that skips authentication
+and opens the directory, for clicking through without waiting on an email.
 
-**Unset it before members get the URL.** With it unset the button doesn't render
-and the bypass is refused server-side, so there's nothing to redeploy — but any
-session already created through it survives until sign-out, showing a red banner
-on every page meanwhile. CLAUDE.md has the details, including how to delete the
-feature outright.
+⚠️ **It is on unless you turn it off.** Anyone with the URL can read every
+member's name and email address. Fine while testing; not fine once the link is
+shared.
+
+To turn it off: set `TESTING_MODE=0` (or `false` / `off` / `no`) in Vercel —
+effective on the next request, no redeploy. At launch, also flip
+`TESTING_MODE_DEFAULT` to `false` in `lib/testing-mode.ts` so unset means off.
+Sign out afterwards: sessions created through the bypass survive until then,
+showing a red banner meanwhile.
+
+The deploy script warns about this on every deploy while the default stands.
 
 ## Adding columns to the source sheet
 

@@ -25,8 +25,8 @@ export default function TestingModeButton() {
         {pending ? "Entering…" : "Testing mode on"}
       </button>
       <p className="mt-2 text-center text-[12px] leading-relaxed text-sub">
-        Skips sign-in and opens the directory. Visible only because{" "}
-        <code className="font-mono">TESTING_MODE=1</code> is set on this server.
+        Skips sign-in and opens the directory. On by default before launch — set{" "}
+        <code className="font-mono">TESTING_MODE=0</code> to turn it off.
       </p>
     </div>
   );

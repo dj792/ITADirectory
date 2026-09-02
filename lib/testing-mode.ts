@@ -3,29 +3,55 @@
  *
  * This exists so the directory can be clicked through without waiting on a
  * magic-link email. It is, unavoidably, a documented way past the only thing
- * protecting 203 members' contact details. So it is built to fail CLOSED and to
- * be impossible to leave on by accident:
+ * protecting 203 members' contact details.
  *
- *  1. OFF unless `TESTING_MODE=1` is set on the server. Not a code constant
- *     someone flips and forgets, and not a `NEXT_PUBLIC_` value — the flag is
- *     never shipped to the browser, so it can't be toggled from a devtools
- *     console.
- *  2. Checked TWICE, and the second check is the real one. The button only
- *     renders when the flag is on, but `authorize` in `auth.ts` re-reads the
- *     flag before issuing a session — so a stale client bundle, a cached page,
- *     or a hand-crafted POST to the callback gets nothing.
- *  3. LOUD once used. The session is stamped with a `testing` memberId, and
- *     every page renders a red banner for the whole session. You cannot be in
- *     testing mode and not know it.
+ * ┌──────────────────────────────────────────────────────────────────────────┐
+ * │  IT IS CURRENTLY ON BY DEFAULT (see TESTING_MODE_DEFAULT below).         │
+ * │  Anyone with the URL can open the directory without signing in.          │
+ * │  Flip that constant to `false` before real members get the link.         │
+ * └──────────────────────────────────────────────────────────────────────────┘
  *
- * REMOVE THE FLAG BEFORE REAL MEMBERS GET THE URL. Unsetting `TESTING_MODE` in
- * Vercel is enough to disable it everywhere — no redeploy needed for the gate
- * itself, though existing testing sessions survive until they're signed out.
+ * Default-on is a pre-launch convenience and reverses the usual posture: the
+ * app now fails OPEN. Three things compensate, and none should be removed while
+ * the default stands:
+ *
+ *  1. The OFF switch is deliberately generous. With default-on, the switch that
+ *     matters is the one that turns it OFF — so `0`, `false`, `off` and `no` all
+ *     work, in any case. Someone reaching for the brake in a hurry should not
+ *     have to guess which spelling this app happens to accept.
+ *  2. `authorize` in `auth.ts` re-reads this before issuing a session, so the
+ *     button on /signin is only presentation. Turning it off in Vercel takes
+ *     effect on the next request — no redeploy needed for the gate itself.
+ *  3. Every testing session is stamped and banner-flagged (below), so nobody is
+ *     in testing mode without knowing it.
+ *
+ * The flag is NEVER `NEXT_PUBLIC_`: it stays server-side, so it can't be
+ * toggled from a devtools console.
  */
 
-/** The single source of truth. Server-side only — never read this in a client component. */
+/**
+ * What an UNSET `TESTING_MODE` means.
+ *
+ * `true`  — pre-launch: no env var needed, the bypass button is just there.
+ * `false` — launch posture: the bypass exists only where TESTING_MODE=1.
+ *
+ * THIS IS THE ONE LINE TO CHANGE AT LAUNCH. `DeployITADirectory.command` warns
+ * on every deploy while it's `true`, so it can't quietly ride along.
+ */
+export const TESTING_MODE_DEFAULT = true;
+
+/** Values that mean "off". Checked case-insensitively, whitespace trimmed. */
+const OFF_VALUES = new Set(["0", "false", "off", "no"]);
+
+/** The single source of truth. Server-side only — never read in a client component. */
 export function testingModeEnabled(): boolean {
-  return process.env.TESTING_MODE === "1";
+  const raw = (process.env.TESTING_MODE ?? "").trim().toLowerCase();
+  if (raw === "") return TESTING_MODE_DEFAULT;
+  // Explicit off wins; anything else set at all is treated as on, because with
+  // default-on the failure to avoid is a typo'd value silently meaning "off"
+  // when someone meant to leave it on — and vice versa the OFF list is
+  // deliberately broad so the brake is hard to miss.
+  return !OFF_VALUES.has(raw);
 }
 
 /**

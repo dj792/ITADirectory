@@ -12,8 +12,8 @@ export default function TestingModeBanner() {
       role="alert"
       className="bg-[#B3261E] px-4 py-2 text-center text-[13px] font-semibold text-white"
     >
-      TESTING MODE — sign-in was skipped. Unset <code className="font-mono">TESTING_MODE</code>{" "}
-      before sharing this URL with members.
+      TESTING MODE — sign-in was skipped. Anyone with this URL can do the same. Set{" "}
+      <code className="font-mono">TESTING_MODE=0</code> before sharing it with members.
     </div>
   );
 }
