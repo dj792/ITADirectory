@@ -23,6 +23,13 @@ export type Member = {
    * nothing else. Read Profile Status; ignore Primary Category.
    */
   status: string;
+  /**
+   * "Member Since", stored EXACTLY as the sheet wrote it. The card formats it
+   * for display via `monthYearLabel`; keeping the raw value here means a change
+   * to how dates are shown is a display change, and the original is never lost
+   * to a parse we got wrong. Blank until the column exists in the export.
+   */
+  memberSince: string;
   /** "Last Event Signed Up for". Blank until the column exists in the export. */
   lastEvent: string;
   website: string;

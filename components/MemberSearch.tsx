@@ -9,6 +9,7 @@ import {
   MIN_QUERY_LENGTH,
   type Filters,
 } from "@/lib/directory/search";
+import { monthYearLabel } from "@/lib/directory/date";
 import type { Directory, Member } from "@/lib/directory/types";
 
 /**
@@ -184,6 +185,7 @@ function SearchGlyph() {
 
 function MemberCard({ member: m }: { member: Member }) {
   const place = [m.city, m.state].filter(Boolean).join(", ");
+  const memberSince = monthYearLabel(m.memberSince);
   return (
     <li className="flex flex-col rounded-xl border border-hair bg-panel p-4 shadow-sm transition hover:border-accent/40 hover:shadow-md">
       <h2 className="text-[15px] font-semibold leading-snug text-strong">{m.name}</h2>
@@ -227,6 +229,17 @@ function MemberCard({ member: m }: { member: Member }) {
                 {m.email}
               </a>
             </dd>
+          </div>
+        )}
+        {/*
+          The only row that needs its own visible label. Place, email and
+          website announce what they are; a bare "March 2019" on a member card
+          does not — it could be a renewal, a last login, anything.
+        */}
+        {memberSince && (
+          <div className="flex gap-1">
+            <dt className="text-sub">Member since</dt>
+            <dd className="text-fg">{memberSince}</dd>
           </div>
         )}
         {m.website && (

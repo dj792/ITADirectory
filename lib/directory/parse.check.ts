@@ -20,6 +20,7 @@ import {
   normalize,
 } from "./search";
 import { parseCsv } from "./csv";
+import { monthYearLabel, parseYearMonth } from "./date";
 
 const FIXTURE = path.join(process.cwd(), "data", "ProfileSelectorData.csv");
 
@@ -167,6 +168,64 @@ check("status facet covers the whole membership", facets.status.length >= 6,
 }
 check("status is NOT searchable as free text",
   applyFilters(members, { ...EMPTY_FILTERS, q: "emeritus" }).length === 0);
+
+/*
+ * ── "Member Since" ───────────────────────────────────────────────────────
+ * A date cell arrives in several shapes and these assert every one, on fixed
+ * inputs, so they hold whether or not the export carries the column yet.
+ * The serial case is the one that matters most: a real date read from an
+ * unformatted grid comes back as a bare number, and a string-only parser
+ * can't see it at all — the exact bug the sibling app hit.
+ */
+check("US M/D/YYYY", monthYearLabel("1/15/2019") === "January 2019",
+  monthYearLabel("1/15/2019"));
+check("ISO YYYY-MM-DD", monthYearLabel("2019-01-15") === "January 2019",
+  monthYearLabel("2019-01-15"));
+check("year-month only", monthYearLabel("2019-03") === "March 2019",
+  monthYearLabel("2019-03"));
+check("written out", monthYearLabel("January 15, 2019") === "January 2019",
+  monthYearLabel("January 15, 2019"));
+check("abbreviated, no day", monthYearLabel("Sep 2021") === "September 2021",
+  monthYearLabel("Sep 2021"));
+check("Sheets SERIAL becomes a real date",
+  monthYearLabel("43480") === "January 2019", monthYearLabel("43480"));
+check("day-first is read as a day, not month 15",
+  monthYearLabel("15/1/2019") === "January 2019", monthYearLabel("15/1/2019"));
+check("two-digit year splits at 70",
+  monthYearLabel("6/1/89") === "June 1989" && monthYearLabel("6/1/19") === "June 2019",
+  `${monthYearLabel("6/1/89")} / ${monthYearLabel("6/1/19")}`);
+check("a lone year keeps the year", monthYearLabel("2019") === "2019",
+  monthYearLabel("2019"));
+// The collision that actually bit: "2019" is a valid four-digit year AND a
+// valid Sheets serial (which is July 1905). Year wins. Serials for real member
+// dates are five digits, so raising the serial floor above 9999 separates them
+// permanently — these pin both sides of that boundary.
+check("a four-digit number is a year, never a serial",
+  monthYearLabel("1998") === "1998" && monthYearLabel("2026") === "2026",
+  `${monthYearLabel("1998")} / ${monthYearLabel("2026")}`);
+check("a five-digit number is still a serial",
+  monthYearLabel("46023") === "January 2026", monthYearLabel("46023"));
+check("blank stays blank", monthYearLabel("") === "" && monthYearLabel("   ") === "");
+
+// Refusals — small numbers are NOT dates, and unreadable text is shown as
+// written rather than dropped or turned into a wrong date.
+check("a small number is not a serial", parseYearMonth("5") === null);
+check("unparseable text survives to the screen",
+  monthYearLabel("Founding member") === "Founding member");
+check("month 13 is refused, not wrapped", parseYearMonth("13/45/2019") === null);
+
+// Whatever the export actually holds must survive the round trip.
+{
+  const withDate = members.filter((m) => m.memberSince);
+  if (withDate.length > 0) {
+    const unreadable = withDate.filter((m) => parseYearMonth(m.memberSince) === null);
+    check("every Member Since value in the export parses",
+      unreadable.length === 0,
+      unreadable.slice(0, 3).map((m) => `${m.name}: "${m.memberSince}"`).join(" · "));
+  } else {
+    console.log("  ·    (export has no 'Member Since' column yet — value checks skipped)");
+  }
+}
 
 /*
  * ── Last Event Signed Up for ─────────────────────────────────────────────

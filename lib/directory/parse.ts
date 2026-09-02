@@ -28,6 +28,16 @@ const COLS = {
   // Profile Status (blank on 76 of 203 rows, never disagreeing where both are
   // set). See the note on `Member.status`.
   profileStatus: ["Profile Status", "Status"],
+  // Not in the export as of the 20-column version. Listed with the names this
+  // field travels under in the association's other exports, so it works the day
+  // ITA adds it, whichever one they use.
+  memberSince: [
+    "Member Since",
+    "Membership Start Date",
+    "Member Since Date",
+    "Date Joined",
+    "Join Date",
+  ],
   // Not in the export as of the 17-column version — listed here so it starts
   // working the moment ITA adds it, with no code change. `headerIndex` already
   // ignores case and punctuation, so "Last Event Signed Up For" and
@@ -93,6 +103,7 @@ export function parseDirectory(tab: SheetTab): Member[] {
       email: cell(row, idx.mainEmail) || cell(row, idx.altEmail),
       membershipLevel: cell(row, idx.membershipLevel),
       status: cell(row, idx.profileStatus),
+      memberSince: cell(row, idx.memberSince),
       lastEvent: cell(row, idx.lastEvent),
       website: cell(row, idx.website),
       city: cell(row, idx.city),
