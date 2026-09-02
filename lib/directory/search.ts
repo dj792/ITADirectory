@@ -26,12 +26,14 @@ export type Filters = {
   q: string;
   membershipLevel: string;
   category: string;
+  lastEvent: string;
 };
 
 export const EMPTY_FILTERS: Filters = {
   q: "",
   membershipLevel: "",
   category: "",
+  lastEvent: "",
 };
 
 /**
@@ -55,6 +57,7 @@ export function applyFilters(members: Member[], f: Filters): Member[] {
     (m) =>
       (!f.membershipLevel || m.membershipLevel === f.membershipLevel) &&
       (!f.category || m.category === f.category) &&
+      (!f.lastEvent || m.lastEvent === f.lastEvent) &&
       matchesQuery(m, f.q)
   );
 }

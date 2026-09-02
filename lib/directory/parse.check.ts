@@ -11,7 +11,7 @@
  */
 import fs from "fs";
 import path from "path";
-import { parseDirectory, facetsOf } from "./parse";
+import { parseDirectory, facetsOf, byEventRecency } from "./parse";
 import { applyFilters, EMPTY_FILTERS, normalize } from "./search";
 import { parseCsv } from "./csv";
 
@@ -126,6 +126,46 @@ check("combined filter satisfies BOTH conditions",
 
 const all = applyFilters(members, EMPTY_FILTERS);
 check("no filters returns everyone", all.length === members.length);
+
+/*
+ * ── Last Event Signed Up for ─────────────────────────────────────────────
+ * Ordering is asserted on FIXED strings, not on whatever the fixture happens
+ * to contain, so these hold whether or not the export carries the column yet —
+ * and keep holding after ITA adds events with new names.
+ */
+check("events sort newest year first",
+  byEventRecency("ITA Spring 2026 Collaborative", "ITA Fall 2025 Collaborative") < 0);
+check("within a year, later season first",
+  byEventRecency("ITL 2026 Summer Meeting", "ITA Spring 2026 Collaborative") < 0);
+check("alphabetical order would have been WRONG (the reason this exists)",
+  "ITA Fall 2025 Collaborative".localeCompare("ITA Spring 2025 Collaborative") < 0 &&
+  byEventRecency("ITA Fall 2025 Collaborative", "ITA Spring 2025 Collaborative") < 0);
+check("a spanning label sorts by its FIRST year",
+  byEventRecency("2026-27 ITA's Leadership Alliance (ILA) Program",
+    "ITA Fall 2025 Collaborative") < 0);
+check("labels with no year sink to the bottom",
+  byEventRecency("Annual Kickoff", "ITA Fall 2024 Collaborative") > 0);
+
+// Facet + filter, only when the export actually has the column.
+if (facets.lastEvent.length > 0) {
+  check("event facet is sorted newest first",
+    facets.lastEvent.every((e, i) =>
+      i === 0 || byEventRecency(facets.lastEvent[i - 1], e) <= 0),
+    facets.lastEvent.join(" · "));
+
+  const pick = facets.lastEvent[0];
+  const byEvent = applyFilters(members, { ...EMPTY_FILTERS, lastEvent: pick });
+  check("event filter narrows and is exact",
+    byEvent.length > 0 &&
+    byEvent.length < members.length &&
+    byEvent.every((m) => m.lastEvent === pick),
+    `${pick}: ${byEvent.length}`);
+
+  check("event is NOT searchable as free text",
+    applyFilters(members, { ...EMPTY_FILTERS, q: "collaborative" }).length === 0);
+} else {
+  console.log("  ·    (fixture has no 'Last Event Signed Up for' column — filter checks skipped)");
+}
 
 /** Count rows whose Primary Category cell is empty, straight from the CSV. */
 function countBlankPrimaryCategory(csv: string): number {

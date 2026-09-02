@@ -26,6 +26,16 @@ const COLS = {
   membershipLevel: ["Membership Level", "Member Level"],
   primaryCategory: ["Primary Category", "Category"],
   profileStatus: ["Profile Status", "Status"],
+  // Not in the export as of the 17-column version — listed here so it starts
+  // working the moment ITA adds it, with no code change. `headerIndex` already
+  // ignores case and punctuation, so "Last Event Signed Up For" and
+  // "last_event_signed_up_for" both resolve; the extras cover real renames.
+  lastEvent: [
+    "Last Event Signed Up for",
+    "Last Event Signed Up",
+    "Last Event Registered",
+    "Last Event",
+  ],
   website: ["Website", "Web Site", "URL"],
   city: ["City"],
   state: ["State/Prov", "State", "State/Province", "Province"],
@@ -81,6 +91,7 @@ export function parseDirectory(tab: SheetTab): Member[] {
       email: cell(row, idx.mainEmail) || cell(row, idx.altEmail),
       membershipLevel: cell(row, idx.membershipLevel),
       category: resolveCategory(cell(row, idx.primaryCategory), cell(row, idx.profileStatus)),
+      lastEvent: cell(row, idx.lastEvent),
       website: cell(row, idx.website),
       city: cell(row, idx.city),
       state: cell(row, idx.state),
@@ -133,5 +144,53 @@ export function facetsOf(members: Member[]): Directory["facets"] {
   return {
     membershipLevel: distinct((m) => m.membershipLevel),
     category: distinct((m) => m.category),
+    // Events sort by DATE, newest first — see `byEventRecency`. Empty while the
+    // column is absent, and the UI then hides the dropdown entirely.
+    lastEvent: Array.from(new Set(members.map((m) => m.lastEvent).filter(Boolean))).sort(
+      byEventRecency
+    ),
   };
+}
+
+/**
+ * Order event names newest-first rather than alphabetically.
+ *
+ * Alphabetical is actively wrong here. The real values are "ITA Spring 2026
+ * Collaborative", "ITA Fall 2025 Collaborative", "ITA Spring 2025
+ * Collaborative", "ITA Fall 2024 Collaborative", "ITL 2026 Summer Meeting",
+ * "2026-27 ITA's Leadership Alliance (ILA) Program" — sorted as text that gives
+ * Fall 2024, Fall 2025, Spring 2025, Spring 2026, which interleaves years and
+ * seasons into nonsense. Nobody scans an event list alphabetically; they look
+ * for the most recent one, and it should be at the top.
+ *
+ * So: pull the year and the season out of the label and sort on those. Labels
+ * with no year fall to the bottom in alphabetical order — unknown, not wrong.
+ * This is presentation only; the stored value is always the sheet's exact text,
+ * so filtering still matches by equality.
+ */
+const SEASONS: [RegExp, number][] = [
+  [/\bspring\b/i, 1],
+  [/\bsummer\b/i, 2],
+  [/\bfall\b|\bautumn\b/i, 3],
+  [/\bwinter\b/i, 4],
+];
+
+function eventSortKey(label: string): { year: number; season: number } {
+  // First 4-digit year in the label. "2026-27 …" yields 2026, which is right:
+  // a program spanning two years belongs with the year it starts.
+  const year = Number(label.match(/\b(19|20)\d{2}\b/)?.[0] ?? 0);
+  const season = SEASONS.find(([re]) => re.test(label))?.[1] ?? 0;
+  return { year, season };
+}
+
+export function byEventRecency(a: string, b: string): number {
+  const ka = eventSortKey(a);
+  const kb = eventSortKey(b);
+  // No year at all sinks to the bottom, whatever it's called.
+  if (!ka.year && !kb.year) return a.localeCompare(b, "en", { sensitivity: "base" });
+  if (!ka.year) return 1;
+  if (!kb.year) return -1;
+  if (ka.year !== kb.year) return kb.year - ka.year; // newest year first
+  if (ka.season !== kb.season) return kb.season - ka.season; // latest season first
+  return a.localeCompare(b, "en", { sensitivity: "base" });
 }

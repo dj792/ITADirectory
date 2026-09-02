@@ -16,6 +16,8 @@ export type Member = {
   membershipLevel: string;
   /** Primary Category, falling back to Profile Status — see parse.ts. */
   category: string;
+  /** "Last Event Signed Up for". Blank until the column exists in the export. */
+  lastEvent: string;
   website: string;
   city: string;
   state: string;
@@ -36,10 +38,18 @@ export type Member = {
 
 export type Directory = {
   members: Member[];
-  /** Distinct values for the two dropdowns, each sorted, blanks dropped. */
+  /**
+   * Distinct values for the dropdowns, each sorted, blanks dropped.
+   *
+   * An EMPTY array is meaningful: the UI hides that dropdown entirely rather
+   * than offering a control whose only choice is "all". So a column the export
+   * doesn't carry yet costs nothing on screen, and the filter appears by itself
+   * the first time real values show up.
+   */
   facets: {
     membershipLevel: string[];
     category: string[];
+    lastEvent: string[];
   };
   /** Where this data came from — shown in the page footer. */
   source: {

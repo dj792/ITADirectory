@@ -21,7 +21,33 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
   );
 
   const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
-  const isFiltered = !!filters.q || !!filters.membershipLevel || !!filters.category;
+  const isFiltered =
+    !!filters.q || !!filters.membershipLevel || !!filters.category || !!filters.lastEvent;
+
+  // Only render a dropdown the data can actually populate. A filter whose only
+  // option is "all" is a dead control that still costs a column of width — and
+  // this way a column ITA hasn't added yet simply isn't there, then appears on
+  // its own the first time it carries values.
+  const dropdowns = [
+    {
+      label: "Membership level",
+      value: filters.membershipLevel,
+      options: directory.facets.membershipLevel,
+      onChange: (v: string) => set({ membershipLevel: v }),
+    },
+    {
+      label: "Category",
+      value: filters.category,
+      options: directory.facets.category,
+      onChange: (v: string) => set({ category: v }),
+    },
+    {
+      label: "Last event signed up for",
+      value: filters.lastEvent,
+      options: directory.facets.lastEvent,
+      onChange: (v: string) => set({ lastEvent: v }),
+    },
+  ].filter((d) => d.options.length > 0);
 
   return (
     <div className="space-y-5">
@@ -43,21 +69,24 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
           />
         </div>
 
-        {/* Both dropdowns AND with each other and with the text box. */}
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <FilterSelect
-            label="Membership level"
-            value={filters.membershipLevel}
-            options={directory.facets.membershipLevel}
-            onChange={(v) => set({ membershipLevel: v })}
-          />
-          <FilterSelect
-            label="Category"
-            value={filters.category}
-            options={directory.facets.category}
-            onChange={(v) => set({ category: v })}
-          />
-        </div>
+        {/* Every dropdown ANDs with the others and with the text box. */}
+        {dropdowns.length > 0 && (
+          <div
+            className={`mt-3 grid gap-3 ${
+              dropdowns.length >= 3 ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2"
+            }`}
+          >
+            {dropdowns.map((d) => (
+              <FilterSelect
+                key={d.label}
+                label={d.label}
+                value={d.value}
+                options={d.options}
+                onChange={d.onChange}
+              />
+            ))}
+          </div>
+        )}
 
         <div className="mt-3 flex items-center justify-between text-[13px] text-sub">
           <span aria-live="polite">

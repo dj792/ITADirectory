@@ -70,7 +70,8 @@ function addColumns(tab: SheetTab, names: string[], at: number): SheetTab {
 /** Every field of Member, so a comparison can't silently skip one. */
 const FIELDS: (keyof Member)[] = [
   "id", "name", "sortName", "organization", "email", "membershipLevel",
-  "category", "website", "city", "state", "zip", "listingLevel", "haystack",
+  "category", "lastEvent", "website", "city", "state", "zip", "listingLevel",
+  "haystack",
 ];
 
 /** First field-level disagreement between two parses, or null if identical. */
