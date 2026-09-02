@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import authConfig from "@/auth.config";
 import { verifyLoginToken } from "@/lib/login-token";
 import { findMemberByEmail } from "@/lib/access";
+import { TESTING_IDENTITY, testingModeEnabled } from "@/lib/testing-mode";
 
 /**
  * Full auth setup used by the API route, server components, and sign-out. It
@@ -19,8 +20,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   providers: [
     Credentials({
-      credentials: { token: { label: "Token", type: "text" } },
+      credentials: {
+        token: { label: "Token", type: "text" },
+        mode: { label: "Mode", type: "text" },
+      },
       async authorize(credentials) {
+        /*
+         * TESTING MODE — the authoritative gate. The button on /signin is only
+         * rendered when the flag is on, but that's presentation; THIS is the
+         * check that matters. A stale client bundle, a cached page, or a
+         * hand-written POST straight to the credentials callback all land here,
+         * and all get null unless the server itself has TESTING_MODE=1.
+         */
+        if ((credentials?.mode ?? "").toString() === "testing") {
+          if (!testingModeEnabled()) return null;
+          return { ...TESTING_IDENTITY };
+        }
+
         const token = (credentials?.token ?? "").toString();
         if (!token) return null;
 

@@ -2,7 +2,9 @@ import BrandMark from "@/components/BrandMark";
 import MemberSearch from "@/components/MemberSearch";
 import SignOutButton from "@/components/SignOutButton";
 import SiteFooter from "@/components/SiteFooter";
+import TestingModeBanner from "@/components/TestingModeBanner";
 import { auth } from "@/auth";
+import { isTestingSession } from "@/lib/testing-mode";
 import { loadDirectory } from "@/lib/directory/service";
 
 /**
@@ -22,6 +24,13 @@ export default async function DirectoryPage() {
     // returns two results the footer sits at the bottom of the window rather
     // than floating halfway up it.
     <div className="flex min-h-screen flex-col">
+      {/*
+        Keyed off the SESSION, not the env flag: turning TESTING_MODE off
+        doesn't end sessions already issued through the bypass, and those are
+        exactly the ones that still need to announce themselves.
+      */}
+      {isTestingSession(session?.user?.memberId) && <TestingModeBanner />}
+
       {/* White band under the logo, as on italliance.com. */}
       <header className="border-b border-hair bg-panel">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
