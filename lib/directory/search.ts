@@ -9,8 +9,8 @@ import type { Member } from "./types";
 
 /**
  * Lowercase, strip accents, and collapse punctuation to spaces — so "O'Brien",
- * "OBrien" and "o brien" all match each other, and "st. louis" finds "St Louis".
- * `@` and `.` survive so an email still reads as one token.
+ * "OBrien" and "o brien" all match each other. `@` and `.` survive so an email
+ * still reads as one token.
  */
 export function normalize(s: string): string {
   return s
@@ -22,23 +22,22 @@ export function normalize(s: string): string {
 }
 
 export type Filters = {
+  /** Free text, matched against name / organization / email only. */
   q: string;
   membershipLevel: string;
-  status: string;
-  state: string;
+  category: string;
 };
 
 export const EMPTY_FILTERS: Filters = {
   q: "",
   membershipLevel: "",
-  status: "",
-  state: "",
+  category: "",
 };
 
 /**
  * Every whitespace-separated term must appear somewhere in the record (AND, not
- * OR). "smith austin" should find Smith in Austin, not everyone named Smith
- * plus everyone in Austin — with 200 members an OR search returns most of the
+ * OR). "smith martus" should find Smith at Martus, not everyone named Smith
+ * plus everyone at Martus — with 200 members an OR search returns most of the
  * list and reads as broken.
  */
 export function matchesQuery(member: Member, query: string): boolean {
@@ -47,13 +46,15 @@ export function matchesQuery(member: Member, query: string): boolean {
   return terms.every((t) => member.haystack.includes(t));
 }
 
-/** Apply the free-text query and every set dropdown. Blank dropdown = no filter. */
+/**
+ * The text box and both dropdowns combine with AND: each one narrows what the
+ * others left. A blank dropdown is "all", not a filter on the empty string.
+ */
 export function applyFilters(members: Member[], f: Filters): Member[] {
   return members.filter(
     (m) =>
       (!f.membershipLevel || m.membershipLevel === f.membershipLevel) &&
-      (!f.status || m.status === f.status) &&
-      (!f.state || m.state === f.state) &&
+      (!f.category || m.category === f.category) &&
       matchesQuery(m, f.q)
   );
 }

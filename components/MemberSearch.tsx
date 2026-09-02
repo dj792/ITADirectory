@@ -20,8 +20,7 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
   );
 
   const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
-  const isFiltered =
-    !!filters.q || !!filters.membershipLevel || !!filters.status || !!filters.state;
+  const isFiltered = !!filters.q || !!filters.membershipLevel || !!filters.category;
 
   return (
     <div className="space-y-5">
@@ -37,13 +36,14 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
             type="search"
             value={filters.q}
             onChange={(e) => set({ q: e.target.value })}
-            placeholder="Search by name, company, city, email…"
+            placeholder="Search by name, company, or email…"
             autoComplete="off"
             className="w-full rounded-md border border-hair bg-white py-3 pl-11 pr-4 text-[15px] text-fg placeholder:text-sub focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
           />
         </div>
 
-        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        {/* Both dropdowns AND with each other and with the text box. */}
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <Select
             label="Membership level"
             value={filters.membershipLevel}
@@ -52,15 +52,9 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
           />
           <Select
             label="Category"
-            value={filters.status}
-            options={directory.facets.status}
-            onChange={(v) => set({ status: v })}
-          />
-          <Select
-            label="State"
-            value={filters.state}
-            options={directory.facets.state}
-            onChange={(v) => set({ state: v })}
+            value={filters.category}
+            options={directory.facets.category}
+            onChange={(v) => set({ category: v })}
           />
         </div>
 
@@ -105,11 +99,19 @@ function MemberCard({ member: m }: { member: Member }) {
       <h2 className="text-[15px] font-semibold leading-snug text-strong">{m.name}</h2>
       {m.organization && <p className="mt-0.5 text-[13px] text-sub">{m.organization}</p>}
 
-      {m.membershipLevel && (
-        <p className="mt-2">
-          <span className="inline-block rounded-sm bg-accent/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-accentDark">
-            {m.membershipLevel}
-          </span>
+      {(m.membershipLevel || m.category) && (
+        <p className="mt-2 flex flex-wrap gap-1.5">
+          {m.membershipLevel && (
+            <span className="inline-block rounded-sm bg-accent/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-accentDark">
+              {m.membershipLevel}
+            </span>
+          )}
+          {/* Only when it adds something — the level often already names it. */}
+          {m.category && !m.membershipLevel.startsWith(m.category) && (
+            <span className="inline-block rounded-sm border border-hair px-2 py-1 text-[11px] font-medium text-sub">
+              {m.category}
+            </span>
+          )}
         </p>
       )}
 

@@ -36,9 +36,18 @@ the whole thing runs with nothing but `AUTH_SECRET` and `AUTH_TRUST_HOST=true`.
 | Command            | What it does                                        |
 | ------------------ | --------------------------------------------------- |
 | `npm run dev`      | Local dev server on :3000                           |
-| `npm run check`    | Fixture assertions against the real member export   |
+| `npm run check`    | Fixture + column-order assertions against the real export |
 | `npm run typecheck`| `tsc --noEmit`                                      |
 | `npm run build`    | Production build                                    |
+
+## Adding columns to the source sheet
+
+Safe to do at any time. Every column is resolved by header NAME, so columns can
+be added, removed or reordered without touching the app — unknown columns are
+simply ignored. `npm run check` proves it: it reparses the data with the columns
+reversed, shuffled, and with new ones inserted at the front, and requires
+identical output. See CLAUDE.md → "THE RULE" for how to surface a new field once
+you've added it.
 
 ## Deploying
 

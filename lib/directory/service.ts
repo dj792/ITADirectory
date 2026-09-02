@@ -59,7 +59,7 @@ function loadFromFixture(): Directory {
   if (!fs.existsSync(FIXTURE)) {
     return {
       members: [],
-      facets: { membershipLevel: [], status: [], state: [] },
+      facets: { membershipLevel: [], category: [] },
       source: { kind: "fixture", sheetUrl: null, readAt: new Date().toISOString() },
     };
   }

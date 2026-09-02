@@ -14,7 +14,7 @@ export type Member = {
   organization: string;
   email: string;
   membershipLevel: string;
-  status: string;
+  /** Primary Category, falling back to Profile Status — see parse.ts. */
   category: string;
   website: string;
   city: string;
@@ -22,20 +22,24 @@ export type Member = {
   zip: string;
   listingLevel: string;
   /**
-   * Everything above, lowercased and joined — the haystack a query is tested
-   * against. Precomputed once at parse time rather than rebuilt per keystroke
-   * per row; with 200 members that's invisible, at 5,000 it isn't.
+   * The four fields the free-text box searches — Profile Name, Related
+   * Organization, Main Profile Email and Report Name — lowercased and joined.
+   *
+   * SCOPE IS DELIBERATE. City, state, membership level and category are NOT in
+   * here: typing "Atlanta" should not return every Atlanta member when the
+   * reader meant a person, and a level typed as free text would collide with
+   * the dropdown that already filters it. Precomputed once at parse time
+   * rather than rebuilt per keystroke per row.
    */
   haystack: string;
 };
 
 export type Directory = {
   members: Member[];
-  /** Distinct values for the filter dropdowns, each sorted, blanks dropped. */
+  /** Distinct values for the two dropdowns, each sorted, blanks dropped. */
   facets: {
     membershipLevel: string[];
-    status: string[];
-    state: string[];
+    category: string[];
   };
   /** Where this data came from — shown in the page footer. */
   source: {
