@@ -25,14 +25,14 @@ export type Filters = {
   /** Free text, matched against name / organization / email only. */
   q: string;
   membershipLevel: string;
-  category: string;
+  status: string;
   lastEvent: string;
 };
 
 export const EMPTY_FILTERS: Filters = {
   q: "",
   membershipLevel: "",
-  category: "",
+  status: "",
   lastEvent: "",
 };
 
@@ -49,14 +49,50 @@ export function matchesQuery(member: Member, query: string): boolean {
 }
 
 /**
- * The text box and both dropdowns combine with AND: each one narrows what the
+ * How many characters the free-text box needs before it searches.
+ *
+ * One or two letters match most of the membership, so results at that point are
+ * noise that happens to arrive fast — and on a directory of real people, a
+ * wall of everyone is also the least private default. Three is the usual floor:
+ * enough to be a real prefix, short enough for "Amy" or "IBM".
+ */
+export const MIN_QUERY_LENGTH = 3;
+
+/**
+ * Has the reader actually asked for something?
+ *
+ * The directory shows NOTHING until this is true — no results, not even a
+ * truncated list. It is a lookup tool, not a browsable roster: someone opening
+ * the page should be prompted to search rather than handed 203 members' names
+ * and email addresses they didn't ask for.
+ *
+ * Any dropdown alone counts, because picking "Technology Partner" is a complete
+ * request on its own. Raw length is used rather than the normalized form so
+ * "3 characters" means what the person typed, not what survived normalizing.
+ */
+export function hasActiveSearch(f: Filters): boolean {
+  return (
+    f.q.trim().length >= MIN_QUERY_LENGTH ||
+    !!f.membershipLevel ||
+    !!f.status ||
+    !!f.lastEvent
+  );
+}
+
+/**
+ * The text box and the dropdowns combine with AND: each one narrows what the
  * others left. A blank dropdown is "all", not a filter on the empty string.
+ *
+ * This is the pure matcher and deliberately does NOT know about
+ * `hasActiveSearch` — callers gate on that first, because "nothing searched
+ * yet" and "searched, no matches" need different words on screen and are the
+ * same empty array here.
  */
 export function applyFilters(members: Member[], f: Filters): Member[] {
   return members.filter(
     (m) =>
       (!f.membershipLevel || m.membershipLevel === f.membershipLevel) &&
-      (!f.category || m.category === f.category) &&
+      (!f.status || m.status === f.status) &&
       (!f.lastEvent || m.lastEvent === f.lastEvent) &&
       matchesQuery(m, f.q)
   );

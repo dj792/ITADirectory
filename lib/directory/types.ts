@@ -14,8 +14,15 @@ export type Member = {
   organization: string;
   email: string;
   membershipLevel: string;
-  /** Primary Category, falling back to Profile Status — see parse.ts. */
-  category: string;
+  /**
+   * "Profile Status" — filled for all 203 rows, 8 distinct values.
+   *
+   * `Primary Category` is deliberately NOT read. It carries the same vocabulary
+   * but is blank for 76 of 203 rows and never disagrees with Profile Status
+   * where both are present, so it added a second, sparser copy of this and
+   * nothing else. Read Profile Status; ignore Primary Category.
+   */
+  status: string;
   /** "Last Event Signed Up for". Blank until the column exists in the export. */
   lastEvent: string;
   website: string;
@@ -27,7 +34,7 @@ export type Member = {
    * The four fields the free-text box searches — Profile Name, Related
    * Organization, Main Profile Email and Report Name — lowercased and joined.
    *
-   * SCOPE IS DELIBERATE. City, state, membership level and category are NOT in
+   * SCOPE IS DELIBERATE. City, state, membership level and status are NOT in
    * here: typing "Atlanta" should not return every Atlanta member when the
    * reader meant a person, and a level typed as free text would collide with
    * the dropdown that already filters it. Precomputed once at parse time
@@ -48,7 +55,7 @@ export type Directory = {
    */
   facets: {
     membershipLevel: string[];
-    category: string[];
+    status: string[];
     lastEvent: string[];
   };
   /** Where this data came from — shown in the page footer. */

@@ -24,7 +24,9 @@ const COLS = {
   mainEmail: ["Main Profile Email", "Primary Email"],
   altEmail: ["Email", "Email Address"],
   membershipLevel: ["Membership Level", "Member Level"],
-  primaryCategory: ["Primary Category", "Category"],
+  // `Primary Category` is intentionally absent — it's a sparser copy of
+  // Profile Status (blank on 76 of 203 rows, never disagreeing where both are
+  // set). See the note on `Member.status`.
   profileStatus: ["Profile Status", "Status"],
   // Not in the export as of the 17-column version — listed here so it starts
   // working the moment ITA adds it, with no code change. `headerIndex` already
@@ -90,7 +92,7 @@ export function parseDirectory(tab: SheetTab): Member[] {
       // Main Profile Email is filled for ~95% of records; `Email` covers the rest.
       email: cell(row, idx.mainEmail) || cell(row, idx.altEmail),
       membershipLevel: cell(row, idx.membershipLevel),
-      category: resolveCategory(cell(row, idx.primaryCategory), cell(row, idx.profileStatus)),
+      status: cell(row, idx.profileStatus),
       lastEvent: cell(row, idx.lastEvent),
       website: cell(row, idx.website),
       city: cell(row, idx.city),
@@ -108,27 +110,9 @@ export function parseDirectory(tab: SheetTab): Member[] {
 }
 
 /**
- * The Category dropdown reads `Primary Category`, falling back to
- * `Profile Status` when it's blank.
- *
- * This is not a guess. In the current export `Primary Category` is EMPTY for 76
- * of 203 members, `Profile Status` is filled for all 203, the two columns draw
- * on the same vocabulary, and they disagree on exactly ZERO rows where both are
- * present. Without the fallback, choosing "Technology Partner" would return 23
- * members instead of 57 — a directory quietly hiding a third of the people it
- * exists to list, with nothing on screen to suggest anything was missed.
- *
- * If the two columns ever DO diverge, `Primary Category` still wins wherever
- * it's set, so the fallback can only fill gaps, never override an answer.
- */
-function resolveCategory(primaryCategory: string, profileStatus: string): string {
-  return primaryCategory || profileStatus;
-}
-
-/**
  * The four fields the free-text box searches: Profile Name, Related
- * Organization, Main Profile Email, Report Name. Location, level and category
- * are deliberately excluded — see the note on `Member.haystack`.
+ * Organization, Main Profile Email, Report Name. Location, level and status are
+ * deliberately excluded — see the note on `Member.haystack`.
  */
 function buildHaystack(m: Omit<Member, "haystack">): string {
   return normalize([m.name, m.sortName, m.organization, m.email].join(" "));
@@ -143,7 +127,7 @@ export function facetsOf(members: Member[]): Directory["facets"] {
 
   return {
     membershipLevel: distinct((m) => m.membershipLevel),
-    category: distinct((m) => m.category),
+    status: distinct((m) => m.status),
     // Events sort by DATE, newest first — see `byEventRecency`. Empty while the
     // column is absent, and the UI then hides the dropdown entirely.
     lastEvent: Array.from(new Set(members.map((m) => m.lastEvent).filter(Boolean))).sort(

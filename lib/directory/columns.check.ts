@@ -70,8 +70,8 @@ function addColumns(tab: SheetTab, names: string[], at: number): SheetTab {
 /** Every field of Member, so a comparison can't silently skip one. */
 const FIELDS: (keyof Member)[] = [
   "id", "name", "sortName", "organization", "email", "membershipLevel",
-  "category", "lastEvent", "website", "city", "state", "zip", "listingLevel",
-  "haystack",
+  "status", "lastEvent", "website", "city", "state", "zip",
+  "listingLevel", "haystack",
 ];
 
 /** First field-level disagreement between two parses, or null if identical. */
@@ -147,7 +147,7 @@ identical(
       m.name === baseline[k].name &&
       m.email === baseline[k].email &&
       m.membershipLevel === baseline[k].membershipLevel &&
-      m.category === baseline[k].category));
+      m.status === baseline[k].status));
 }
 
 // 6. Header text the sheet might drift to. `headerIndex` normalizes case,

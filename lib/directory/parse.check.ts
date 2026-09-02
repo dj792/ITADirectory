@@ -12,7 +12,13 @@
 import fs from "fs";
 import path from "path";
 import { parseDirectory, facetsOf, byEventRecency } from "./parse";
-import { applyFilters, EMPTY_FILTERS, normalize } from "./search";
+import {
+  applyFilters,
+  hasActiveSearch,
+  EMPTY_FILTERS,
+  MIN_QUERY_LENGTH,
+  normalize,
+} from "./search";
 import { parseCsv } from "./csv";
 
 const FIXTURE = path.join(process.cwd(), "data", "ProfileSelectorData.csv");
@@ -83,31 +89,23 @@ check("punctuation is ignored in search", normalize("O'Brien, St. Louis") === "o
 // --- Dropdowns -------------------------------------------------------------
 check("membership levels found", facets.membershipLevel.length >= 5,
   `${facets.membershipLevel.length}`);
-check("categories found", facets.category.length >= 5, `${facets.category.length}`);
 check("no blank dropdown values",
-  [...facets.membershipLevel, ...facets.category].every(Boolean));
+  [...facets.membershipLevel, ...facets.status].every(Boolean));
 
 /*
- * The category fallback. `Primary Category` is blank for 76 of the 203 rows;
- * `Profile Status` fills every one with the same vocabulary. Without the
- * fallback the Category dropdown silently hides a third of the directory —
- * so assert on the real numbers, not just "greater than zero".
+ * `Primary Category` is NOT read — Profile Status carries the same vocabulary
+ * and is complete, while Primary Category is blank on 76 of 203 rows. This
+ * asserts the column is still the sparse one, i.e. that ignoring it is still
+ * the right call: if ITA ever fills it in, this fails and the decision is worth
+ * revisiting rather than being invisibly inherited.
  */
 const csvBlankCategory = countBlankPrimaryCategory(raw);
-check("fixture still has the blank Primary Category rows this guards against",
-  csvBlankCategory > 50, `${csvBlankCategory} blank`);
-check("EVERY member has a category after the fallback",
-  members.every((m) => m.category.length > 0),
-  `${members.filter((m) => !m.category).length} without one`);
+check("Primary Category is still the sparse column we're right to ignore",
+  csvBlankCategory > 50,
+  `${csvBlankCategory} of ${grid.rows.length} blank`);
 
-const techPartners = applyFilters(members, { ...EMPTY_FILTERS, category: "Technology Partner" });
-check("category filter counts the fallback rows too",
-  techPartners.length > 40,
-  `Technology Partner: ${techPartners.length} (would be ~23 without the fallback)`);
-check("category filter is exact",
-  techPartners.every((m) => m.category === "Technology Partner"));
-
-// --- The two dropdowns AND with each other and with the text box ------------
+// --- The dropdowns AND with each other and with the text box ----------------
+const techPartners = applyFilters(members, { ...EMPTY_FILTERS, status: "Technology Partner" });
 const level = "Technology Partner - Gold";
 const byLevel = applyFilters(members, { ...EMPTY_FILTERS, membershipLevel: level });
 check("level filter narrows the list",
@@ -116,16 +114,59 @@ check("level filter narrows the list",
 const combined = applyFilters(members, {
   ...EMPTY_FILTERS,
   membershipLevel: level,
-  category: "Technology Partner",
+  status: "Technology Partner",
 });
-check("level AND category narrows further, never wider",
+check("level AND status narrows further, never wider",
   combined.length <= byLevel.length && combined.length <= techPartners.length,
   `${combined.length} ≤ min(${byLevel.length}, ${techPartners.length})`);
 check("combined filter satisfies BOTH conditions",
-  combined.every((m) => m.membershipLevel === level && m.category === "Technology Partner"));
+  combined.every((m) => m.membershipLevel === level && m.status === "Technology Partner"));
 
 const all = applyFilters(members, EMPTY_FILTERS);
-check("no filters returns everyone", all.length === members.length);
+check("no filters returns everyone (the pure matcher stays pure)",
+  all.length === members.length);
+
+/*
+ * ── The "search before you see anything" gate ────────────────────────────
+ * `applyFilters` still matches everything on empty input — that's correct, it's
+ * the pure matcher. The gate is `hasActiveSearch`, which the UI checks first.
+ * These assert the RULE, so a later refactor can't quietly turn the directory
+ * back into a browsable roster of 203 people's contact details.
+ */
+check("idle page is NOT an active search", !hasActiveSearch(EMPTY_FILTERS));
+check("one or two characters is NOT enough",
+  !hasActiveSearch({ ...EMPTY_FILTERS, q: "a" }) &&
+  !hasActiveSearch({ ...EMPTY_FILTERS, q: "ab" }));
+check(`${MIN_QUERY_LENGTH} characters IS enough`,
+  hasActiveSearch({ ...EMPTY_FILTERS, q: "abc" }));
+check("whitespace doesn't count toward the minimum",
+  !hasActiveSearch({ ...EMPTY_FILTERS, q: "  a  " }));
+check("a dropdown alone is a complete search",
+  hasActiveSearch({ ...EMPTY_FILTERS, membershipLevel: "Technology Partner - Gold" }) &&
+  hasActiveSearch({ ...EMPTY_FILTERS, status: "Technology Partner" }) &&
+  hasActiveSearch({ ...EMPTY_FILTERS, lastEvent: "ITA Spring 2026 Collaborative" }));
+
+/*
+ * ── Profile Status ───────────────────────────────────────────────────────
+ * Read straight from the `Profile Status` column, and the only status-like
+ * field the app has. Complete coverage is what makes it usable as a filter, so
+ * assert that rather than assuming it.
+ */
+check("every member has a Profile Status", members.every((m) => m.status.length > 0),
+  `${members.filter((m) => !m.status).length} without one`);
+check("status facet covers the whole membership", facets.status.length >= 6,
+  facets.status.join(" · "));
+{
+  const pick = "Technology Partner";
+  const byStatus = applyFilters(members, { ...EMPTY_FILTERS, status: pick });
+  check("status filter narrows and is exact",
+    byStatus.length > 0 &&
+    byStatus.length < members.length &&
+    byStatus.every((m) => m.status === pick),
+    `${pick}: ${byStatus.length}`);
+}
+check("status is NOT searchable as free text",
+  applyFilters(members, { ...EMPTY_FILTERS, q: "emeritus" }).length === 0);
 
 /*
  * ── Last Event Signed Up for ─────────────────────────────────────────────

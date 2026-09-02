@@ -121,7 +121,7 @@ function loadFromFixture(): Directory {
   if (!fs.existsSync(FIXTURE)) {
     return {
       members: [],
-      facets: { membershipLevel: [], category: [], lastEvent: [] },
+      facets: { membershipLevel: [], status: [], lastEvent: [] },
       source: { kind: "fixture", sheetUrl: null, readAt: new Date().toISOString() },
     };
   }

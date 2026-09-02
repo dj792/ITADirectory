@@ -2,7 +2,13 @@
 
 import { useMemo, useState } from "react";
 import FilterSelect from "@/components/FilterSelect";
-import { applyFilters, EMPTY_FILTERS, type Filters } from "@/lib/directory/search";
+import {
+  applyFilters,
+  hasActiveSearch,
+  EMPTY_FILTERS,
+  MIN_QUERY_LENGTH,
+  type Filters,
+} from "@/lib/directory/search";
 import type { Directory, Member } from "@/lib/directory/types";
 
 /**
@@ -15,14 +21,25 @@ import type { Directory, Member } from "@/lib/directory/types";
 export default function MemberSearch({ directory }: { directory: Directory }) {
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
 
+  // Nothing is shown until the reader has actually asked for something. The
+  // filtering is skipped entirely rather than run and hidden, so an idle page
+  // never has 203 members' details sitting in the rendered output.
+  const active = hasActiveSearch(filters);
   const results = useMemo(
-    () => applyFilters(directory.members, filters),
-    [directory.members, filters]
+    () => (active ? applyFilters(directory.members, filters) : []),
+    [active, directory.members, filters]
   );
+
+  // Typed something, but not yet enough. Worth its own message: silence here
+  // reads as "no matches" and sends people away thinking the name isn't listed.
+  const typedTooShort = !active && filters.q.trim().length > 0;
 
   const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
   const isFiltered =
-    !!filters.q || !!filters.membershipLevel || !!filters.category || !!filters.lastEvent;
+    !!filters.q ||
+    !!filters.membershipLevel ||
+    !!filters.status ||
+    !!filters.lastEvent;
 
   // Only render a dropdown the data can actually populate. A filter whose only
   // option is "all" is a dead control that still costs a column of width — and
@@ -36,10 +53,10 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
       onChange: (v: string) => set({ membershipLevel: v }),
     },
     {
-      label: "Category",
-      value: filters.category,
-      options: directory.facets.category,
-      onChange: (v: string) => set({ category: v }),
+      label: "Profile status",
+      value: filters.status,
+      options: directory.facets.status,
+      onChange: (v: string) => set({ status: v }),
     },
     {
       label: "Last event signed up for",
@@ -89,10 +106,15 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
         )}
 
         <div className="mt-3 flex items-center justify-between text-[13px] text-sub">
+          {/* aria-live so a screen reader hears the count change as you type. */}
           <span aria-live="polite">
-            {results.length === directory.members.length
-              ? `${directory.members.length} members`
-              : `${results.length} of ${directory.members.length} members`}
+            {!active
+              ? typedTooShort
+                ? `Keep typing — ${MIN_QUERY_LENGTH} characters minimum`
+                : `${directory.members.length} members in the directory`
+              : results.length === directory.members.length
+                ? `${directory.members.length} members`
+                : `${results.length} of ${directory.members.length} members`}
           </span>
           {isFiltered && (
             <button
@@ -107,10 +129,20 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
       </div>
 
       {/* ── Results ──────────────────────────────────────────────────────── */}
-      {results.length === 0 ? (
-        <p className="rounded-xl border border-hair bg-panel p-8 text-center text-[15px] text-sub">
-          No members match that search.
-        </p>
+      {!active ? (
+        <EmptyState
+          heading={typedTooShort ? "Keep typing…" : "Search the ITA membership"}
+          body={
+            typedTooShort
+              ? `Enter at least ${MIN_QUERY_LENGTH} characters, or pick a filter above.`
+              : "Type a name, company, or email address — or choose a filter above — to see members."
+          }
+        />
+      ) : results.length === 0 ? (
+        <EmptyState
+          heading="No members match that search"
+          body="Check the spelling, try a shorter search, or clear the filters."
+        />
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {results.map((m) => (
@@ -122,6 +154,34 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
   );
 }
 
+/**
+ * The idle and no-match states share a shape so the page doesn't visibly
+ * restructure between them — only the words change.
+ */
+function EmptyState({ heading, body }: { heading: string; body: string }) {
+  return (
+    <div className="rounded-xl border border-hair bg-panel px-6 py-12 text-center">
+      <SearchGlyph />
+      <p className="mt-3 text-[15px] font-semibold text-strong">{heading}</p>
+      <p className="mx-auto mt-1 max-w-sm text-[14px] leading-relaxed text-sub">{body}</p>
+    </div>
+  );
+}
+
+function SearchGlyph() {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 20 20"
+      fill="none"
+      className="mx-auto h-8 w-8 text-hair"
+    >
+      <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.5" />
+      <path d="m13.5 13.5 3.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function MemberCard({ member: m }: { member: Member }) {
   const place = [m.city, m.state].filter(Boolean).join(", ");
   return (
@@ -129,17 +189,21 @@ function MemberCard({ member: m }: { member: Member }) {
       <h2 className="text-[15px] font-semibold leading-snug text-strong">{m.name}</h2>
       {m.organization && <p className="mt-0.5 text-[13px] text-sub">{m.organization}</p>}
 
-      {(m.membershipLevel || m.category) && (
+      {(m.membershipLevel || m.status) && (
         <p className="mt-2 flex flex-wrap gap-1.5">
           {m.membershipLevel && (
             <span className="inline-block rounded-sm bg-accent/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-accentDark">
               {m.membershipLevel}
             </span>
           )}
-          {/* Only when it adds something — the level often already names it. */}
-          {m.category && !m.membershipLevel.startsWith(m.category) && (
+          {/*
+            Suppressed when the level already begins with it — "Technology
+            Partner - Gold" alongside "Technology Partner" is noise, not
+            information.
+          */}
+          {m.status && !m.membershipLevel.startsWith(m.status) && (
             <span className="inline-block rounded-sm border border-hair px-2 py-1 text-[11px] font-medium text-sub">
-              {m.category}
+              {m.status}
             </span>
           )}
         </p>
