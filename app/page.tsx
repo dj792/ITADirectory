@@ -1,6 +1,7 @@
 import BrandMark from "@/components/BrandMark";
 import MemberSearch from "@/components/MemberSearch";
 import SignOutButton from "@/components/SignOutButton";
+import SiteFooter from "@/components/SiteFooter";
 import { auth } from "@/auth";
 import { loadDirectory } from "@/lib/directory/service";
 
@@ -17,7 +18,10 @@ export default async function DirectoryPage() {
   const [session, directory] = await Promise.all([auth(), loadDirectory()]);
 
   return (
-    <div className="min-h-screen">
+    // min-h-screen + flex-col, with `mt-auto` on the footer: on a search that
+    // returns two results the footer sits at the bottom of the window rather
+    // than floating halfway up it.
+    <div className="flex min-h-screen flex-col">
       {/* White band under the logo, as on italliance.com. */}
       <header className="border-b border-hair bg-panel">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
@@ -36,7 +40,7 @@ export default async function DirectoryPage() {
       <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
         <h1 className="text-2xl sm:text-[28px]">Member Directory</h1>
         <p className="mt-1 text-[15px] text-sub">
-          Search the ITA membership by name, company, location, or email.
+          Search the ITA membership by name, company, or email.
         </p>
 
         <div className="mt-6">
@@ -44,39 +48,41 @@ export default async function DirectoryPage() {
         </div>
       </main>
 
-      <footer className="mt-6 bg-accentDark py-6 text-[12px] text-white/80">
-        <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-          {directory.source.kind === "sheet" ? (
-            <p>
-              Source: the ITA member sheet
-              {directory.source.sheetUrl && (
-                <>
-                  {" · "}
-                  <a
-                    href={directory.source.sheetUrl}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="text-white underline-offset-2 hover:underline"
-                  >
-                    open in Google Sheets
-                  </a>
-                </>
-              )}
-            </p>
-          ) : (
-            // Says so plainly rather than pretending the list is live — the
-            // whole point of the fixture is to build before the sheet is shared.
-            <p>
-              Source: local development fixture (ProfileSelectorData.csv). Set
-              DIRECTORY_SHEET_ID and share the sheet with the service account to
-              read live data.
-            </p>
-          )}
-          <p className="mt-2">
-            © {new Date().getFullYear()} Information Technology Alliance
-          </p>
-        </div>
-      </footer>
+      <SiteFooter note={<SourceNote directory={directory} />} />
     </div>
+  );
+}
+
+/**
+ * Where the list came from. The fixture case says so plainly rather than
+ * letting a development list pass for the live membership.
+ */
+function SourceNote({ directory }: { directory: Awaited<ReturnType<typeof loadDirectory>> }) {
+  if (directory.source.kind !== "sheet") {
+    return (
+      <>
+        Source: local development fixture (ProfileSelectorData.csv). Set
+        DIRECTORY_SHEET_ID and share the sheet with the service account to read
+        live data.
+      </>
+    );
+  }
+  return (
+    <>
+      Source: the ITA member sheet
+      {directory.source.sheetUrl && (
+        <>
+          {" · "}
+          <a
+            href={directory.source.sheetUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="underline-offset-2 hover:text-white hover:underline"
+          >
+            open in Google Sheets
+          </a>
+        </>
+      )}
+    </>
   );
 }

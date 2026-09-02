@@ -38,6 +38,33 @@ export const BRAND = {
 export const LOGO_SRC = "/ita-logo.png";
 export const LOGO_ALT = "Information Technology Alliance";
 
+/**
+ * Footer contact details, as published on italliance.com. One place, so a
+ * change to ITA's phone number is one edit rather than a hunt through pages.
+ */
+export const CONTACT = {
+  tel: "480.515.2003",
+  /** Digits only, for the tel: href — a dotted number isn't dialable. */
+  telHref: "+14805152003",
+  email: "ita@italliance.com",
+  contactUrl: "https://www.italliance.com/contact/",
+  privacyUrl: "https://www.italliance.com/about/privacy-policy/",
+  siteUrl: "https://www.italliance.com/",
+  legalName: "Information Technology Alliance",
+} as const;
+
+/**
+ * Copyright year — a CONSTANT, not `new Date().getFullYear()`.
+ *
+ * /signin is statically prerendered, so a computed year would freeze at BUILD
+ * time there while the dynamic pages showed the real one: a footer that's right
+ * on one page and quietly wrong on another, which is worse than being uniformly
+ * a year behind. A constant is at least consistent and greppable. Bump it each
+ * January, or move it into the deploy script's stamping step alongside the
+ * version number.
+ */
+export const COPYRIGHT_YEAR = 2026;
+
 /** Montserrat is the site's only typeface, at every weight it uses. */
 export const FONT_STACK =
   "var(--font-montserrat), Montserrat, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
