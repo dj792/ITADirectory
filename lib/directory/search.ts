@@ -21,12 +21,21 @@ export function normalize(s: string): string {
     .trim();
 }
 
+/**
+ * Organisations, individuals, or both. `""` IS "both" and is the default —
+ * a named default rather than a third enum value, so every place that asks
+ * "is this filter set?" gets the right answer without special-casing.
+ */
+export type ProfileKind = "" | "org" | "individual";
+
 export type Filters = {
   /** Free text, matched against name / organization / email only. */
   q: string;
   membershipLevel: string;
   status: string;
   lastEvent: string;
+  /** "" = both (default) · "org" · "individual" */
+  kind: ProfileKind;
 };
 
 export const EMPTY_FILTERS: Filters = {
@@ -34,6 +43,7 @@ export const EMPTY_FILTERS: Filters = {
   membershipLevel: "",
   status: "",
   lastEvent: "",
+  kind: "",
 };
 
 /**
@@ -69,6 +79,13 @@ export const MIN_QUERY_LENGTH = 3;
  * Any dropdown alone counts, because picking "Technology Partner" is a complete
  * request on its own. Raw length is used rather than the normalized form so
  * "3 characters" means what the person typed, not what survived normalizing.
+ *
+ * `kind` IS DELIBERATELY EXCLUDED. Organisations / Individuals / Both is a
+ * REFINEMENT, not a request: "Organisations" on its own is three quarters of
+ * the membership, which is the wall-of-everyone this gate exists to prevent —
+ * and it would arrive without anyone having typed a thing. It narrows a search
+ * someone has already made. Selecting it while idle leaves the prompt up, and
+ * the prompt says so.
  */
 export function hasActiveSearch(f: Filters): boolean {
   return (
@@ -94,6 +111,7 @@ export function applyFilters(members: Member[], f: Filters): Member[] {
       (!f.membershipLevel || m.membershipLevel === f.membershipLevel) &&
       (!f.status || m.status === f.status) &&
       (!f.lastEvent || m.lastEvent === f.lastEvent) &&
+      (!f.kind || (f.kind === "org") === m.isOrganization) &&
       matchesQuery(m, f.q)
   );
 }

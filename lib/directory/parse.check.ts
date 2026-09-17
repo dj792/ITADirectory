@@ -11,18 +11,29 @@
  */
 import fs from "fs";
 import path from "path";
-import { parseDirectory, facetsOf, byEventRecency } from "./parse";
+import { parseDirectory, parseDirectoryWithBasis, facetsOf, byEventRecency } from "./parse";
 import {
   applyFilters,
   hasActiveSearch,
   EMPTY_FILTERS,
   MIN_QUERY_LENGTH,
   normalize,
+  type Filters,
 } from "./search";
 import { parseCsv } from "./csv";
 import { monthYearLabel, parseYearMonth } from "./date";
+import { filtersFromParams, filtersToQueryString, memberHref, searchHref } from "./url";
+import { eventFilterPending, isPending } from "./pending";
 
-const FIXTURE = path.join(process.cwd(), "data", "ProfileSelectorData.csv");
+/**
+ * Fixtures, primary first. The assertions below run against whichever is
+ * present, so the same suite covers the SQL view and the older report export —
+ * which is the point of one parser with candidate header names rather than two
+ * parsers.
+ */
+const PROFILE_VIEW = path.join(process.cwd(), "data", "ProfileView.csv");
+const REPORT_EXPORT = path.join(process.cwd(), "data", "ProfileSelectorData.csv");
+const FIXTURE = [PROFILE_VIEW, REPORT_EXPORT].find((p) => fs.existsSync(p)) ?? "";
 
 let failures = 0;
 function check(label: string, cond: boolean, detail = "") {
@@ -34,21 +45,50 @@ function check(label: string, cond: boolean, detail = "") {
   }
 }
 
-if (!fs.existsSync(FIXTURE)) {
+if (!FIXTURE) {
   console.log("fixture not present — skipping (this is fine on a clean checkout)");
   process.exit(0);
 }
 
 const raw = fs.readFileSync(FIXTURE, "utf8");
 const grid = parseCsv(raw);
-const members = parseDirectory(grid);
+const { members, basis } = parseDirectoryWithBasis(grid);
+console.log(`source: ${path.basename(FIXTURE)}`);
 const facets = facetsOf(members);
 
-console.log(`\nProfileSelectorData fixture → ${members.length} members\n`);
+const isProfileView = grid.headers.includes("Profile_ProfileId");
+console.log(
+  `\n${grid.rows.length} rows · ${grid.headers.length} columns → ${members.length} members\n`
+);
 
-// --- Parsing ---------------------------------------------------------------
-check("every data row became a member", members.length === grid.rows.length,
-  `${members.length} of ${grid.rows.length}`);
+/*
+ * ── WHO COUNTS AS A MEMBER ───────────────────────────────────────────────
+ * The single most consequential rule in the parser. ProfileView is the whole
+ * contact database, so reading it unfiltered would publish ~2,700 prospects,
+ * alumni and former members. The report export arrives pre-filtered, where the
+ * flag reads True throughout and the filter is a no-op.
+ *
+ * Both directions are asserted, so neither source can drift into the other's
+ * behaviour unnoticed.
+ */
+if (isProfileView) {
+  check("the member flag was found and applied",
+    basis.memberFlagColumn === "Profile_Member" && basis.nonMembersSkipped > 0,
+    `column=${basis.memberFlagColumn} skipped=${basis.nonMembersSkipped}`);
+  check("the full contact database is NOT published",
+    members.length < grid.rows.length / 5,
+    `${members.length} members out of ${grid.rows.length} contacts`);
+  check("the member count is the expected order of magnitude",
+    members.length > 150 && members.length < 400, `${members.length}`);
+  check("no former member slipped through",
+    members.every((m) => !/^former member|^prospect\b/i.test(m.status)),
+    members.filter((m) => /^former member|^prospect\b/i.test(m.status))
+      .slice(0, 3).map((m) => `${m.name}: ${m.status}`).join(" · "));
+} else {
+  check("a pre-filtered export loses no rows",
+    members.length === grid.rows.length, `${members.length} of ${grid.rows.length}`);
+}
+
 check("every member has a name", members.every((m) => m.name.length > 0));
 check("ids are unique", new Set(members.map((m) => m.id)).size === members.length);
 check("most members have an email",
@@ -100,10 +140,14 @@ check("no blank dropdown values",
  * the right call: if ITA ever fills it in, this fails and the decision is worth
  * revisiting rather than being invisibly inherited.
  */
-const csvBlankCategory = countBlankPrimaryCategory(raw);
-check("Primary Category is still the sparse column we're right to ignore",
-  csvBlankCategory > 50,
-  `${csvBlankCategory} of ${grid.rows.length} blank`);
+if (grid.headers.includes("Primary Category")) {
+  const csvBlankCategory = countBlankPrimaryCategory(raw);
+  check("Primary Category is still the sparse column we're right to ignore",
+    csvBlankCategory > 50,
+    `${csvBlankCategory} of ${grid.rows.length} blank`);
+} else {
+  console.log("  ·    (no 'Primary Category' column in this export — check skipped)");
+}
 
 // --- The dropdowns AND with each other and with the text box ----------------
 const techPartners = applyFilters(members, { ...EMPTY_FILTERS, status: "Technology Partner" });
@@ -273,6 +317,204 @@ function countBlankPrimaryCategory(csv: string): number {
   const i = g.headers.indexOf("Primary Category");
   if (i < 0) return 0;
   return g.rows.filter((r) => !(r[i] ?? "").trim()).length;
+}
+
+/*
+ * ── Search state in the URL ──────────────────────────────────────────────
+ * These params are a PUBLIC surface now: people paste these links into email.
+ * Renaming one silently breaks every link already sent, so the names are
+ * asserted literally, not derived from the code under test.
+ */
+{
+  // Key order matters: the round-trip below compares JSON.stringify against
+  // what `filtersFromParams` builds, so this must list fields in the same order.
+  const full: Filters = {
+    q: "martus",
+    membershipLevel: "Technology Partner - Gold",
+    status: "Technology Partner",
+    lastEvent: "ITA Spring 2026 Collaborative",
+    kind: "",
+  };
+
+  check("param names are q / level / status / event",
+    filtersToQueryString(full) ===
+      "q=martus&level=Technology+Partner+-+Gold&status=Technology+Partner" +
+      "&event=ITA+Spring+2026+Collaborative",
+    filtersToQueryString(full));
+
+  check("filters survive the round trip",
+    JSON.stringify(filtersFromParams(new URLSearchParams(filtersToQueryString(full)))) ===
+      JSON.stringify(full));
+
+  check("an empty search makes a clean URL",
+    filtersToQueryString(EMPTY_FILTERS) === "" && searchHref(EMPTY_FILTERS) === "/",
+    searchHref(EMPTY_FILTERS));
+  check("only the set filters appear",
+    filtersToQueryString({ ...EMPTY_FILTERS, q: "smith" }) === "q=smith",
+    filtersToQueryString({ ...EMPTY_FILTERS, q: "smith" }));
+
+  // Next hands a page `{ q: "x" }` while the browser gives a URLSearchParams —
+  // both reach this code, so both must work.
+  check("plain-object params work too (Next server pages)",
+    filtersFromParams({ q: "smith", level: "Emeritus" }).q === "smith" &&
+    filtersFromParams({ q: "smith", level: "Emeritus" }).membershipLevel === "Emeritus");
+  check("a repeated param takes the first, never joins",
+    filtersFromParams({ q: ["a", "b"] }).q === "a",
+    filtersFromParams({ q: ["a", "b"] }).q);
+  check("missing params are empty, not undefined",
+    filtersFromParams({}).q === "" && filtersFromParams({}).lastEvent === "");
+
+  // Values carry spaces, ampersands and apostrophes ("2026-27 ITA's …").
+  const tricky = { ...EMPTY_FILTERS, lastEvent: "2026-27 ITA's Leadership Alliance (ILA) Program" };
+  check("awkward characters survive encoding",
+    filtersFromParams(new URLSearchParams(filtersToQueryString(tricky))).lastEvent ===
+      tricky.lastEvent);
+
+  // The member link is what makes a result shareable.
+  const real = members[0];
+  check("member links use the stable ProfileID",
+    memberHref(real.id, EMPTY_FILTERS) === `/member/${real.id}`,
+    memberHref(real.id, EMPTY_FILTERS));
+  check("member links carry the search back with them",
+    memberHref(real.id, { ...EMPTY_FILTERS, q: "smith" }) === `/member/${real.id}?q=smith`);
+  check("an id needing encoding is encoded",
+    memberHref("a/b") === "/member/a%2Fb", memberHref("a/b"));
+
+  // The detail page finds its member by that id; ids are unique (asserted
+  // above), so this is the lookup the page actually performs.
+  check("every member is reachable by its own id",
+    members.every((m) => members.filter((x) => x.id === m.id).length === 1));
+}
+
+/* ── Organisations / Individuals / Both ──────────────────────────────────── */
+{
+  const orgs = members.filter((m) => m.isOrganization);
+  const people = members.filter((m) => !m.isOrganization);
+  check("the org flag splits the membership, not all-or-nothing",
+    orgs.length > 0 && people.length > 0 && orgs.length + people.length === members.length,
+    `${orgs.length} organisations · ${people.length} individuals`);
+
+  check("Both is the default and filters nothing",
+    applyFilters(members, { ...EMPTY_FILTERS, kind: "" }).length === members.length);
+  check("Organizations returns only organisations",
+    applyFilters(members, { ...EMPTY_FILTERS, kind: "org" }).every((m) => m.isOrganization));
+  check("Individuals returns only individuals",
+    applyFilters(members, { ...EMPTY_FILTERS, kind: "individual" })
+      .every((m) => !m.isOrganization));
+  check("the two halves reconstruct the whole",
+    applyFilters(members, { ...EMPTY_FILTERS, kind: "org" }).length +
+      applyFilters(members, { ...EMPTY_FILTERS, kind: "individual" }).length ===
+      members.length);
+
+  // It REFINES a search, it does not start one — see hasActiveSearch.
+  check("picking a type alone does NOT open the directory",
+    !hasActiveSearch({ ...EMPTY_FILTERS, kind: "org" }) &&
+    !hasActiveSearch({ ...EMPTY_FILTERS, kind: "individual" }));
+  check("but it does narrow a real search",
+    applyFilters(members, { ...EMPTY_FILTERS, q: "consult", kind: "individual" }).length <=
+      applyFilters(members, { ...EMPTY_FILTERS, q: "consult" }).length);
+
+  check("kind round-trips through the URL as ?type=",
+    filtersToQueryString({ ...EMPTY_FILTERS, kind: "org" }) === "type=org" &&
+    filtersFromParams({ type: "individual" }).kind === "individual",
+    filtersToQueryString({ ...EMPTY_FILTERS, kind: "org" }));
+  check("an unknown ?type= falls back to Both, never an empty page",
+    filtersFromParams({ type: "banana" }).kind === "" &&
+    filtersFromParams({ type: "ORG" }).kind === "");
+  check("Both leaves the URL clean",
+    filtersToQueryString({ ...EMPTY_FILTERS, kind: "" }) === "");
+}
+
+/* ── The two engagement columns ─────────────────────────────────────────── */
+check("signed-up and attended are kept APART",
+  members.every((m) => m.lastEvent === "" || m.lastEventAttended !== m.lastEvent) ||
+  grid.headers.indexOf("Last Event Attended") < 0,
+  "a member showing the same value for both may mean the headers got crossed");
+
+/*
+ * ── The ProfileView mapping ──────────────────────────────────────────────
+ * Every one of these was verified against the two real exports across the 203
+ * members they share. Asserting them here is what stops a future candidate-list
+ * edit from quietly repointing a field: `email` in particular must stay the
+ * MAIN CONTACT's address, not the org's sparse shared alias.
+ */
+if (isProfileView) {
+  const filled = (pick: (m: (typeof members)[number]) => string) =>
+    members.filter((m) => pick(m).trim()).length;
+
+  check("names came from Profile_ReportName", filled((m) => m.name) === members.length);
+  check("every member has a sortName", members.every((m) => m.sortName.length > 0));
+  /*
+   * The "Last, First" form belongs to PEOPLE. An earlier version of this check
+   * asserted that a third of all sortNames contain a comma and failed at 53/202
+   * — not a parsing bug, but the Org/Individual split: three quarters of ITA's
+   * members are companies, and a company has no surname. Assert the thing that
+   * is actually true.
+   */
+  const individuals = members.filter((m) => !m.isOrganization);
+  check("individuals sort by surname, organisations by name",
+    individuals.length > 0 &&
+    individuals.filter((m) => m.sortName.includes(",")).length > individuals.length * 0.8,
+    `${individuals.filter((m) => m.sortName.includes(",")).length} of ${individuals.length} individuals`);
+  check("email prefers the main contact, not the org alias",
+    filled((m) => m.email) > members.length * 0.9, `${filled((m) => m.email)}/${members.length}`);
+  check("Member_MemberSince populated memberSince",
+    filled((m) => m.memberSince) > members.length * 0.9,
+    `${filled((m) => m.memberSince)}/${members.length}`);
+  /*
+   * A DATA-QUALITY GUARD, not a parser test.
+   *
+   * 9 of 202 members carry a `Member_MemberSince` identical to
+   * `Profile_DateCreated` down to the second — the 10 May 2024 migration
+   * timestamp, backfilled where a real join date was unknown. All nine are
+   * Emeritus. The other 193 are genuine dates going back to 2002, so the field
+   * is worth showing; but if a future migration backfills EVERY row, the page
+   * would quietly tell 202 members they joined on the same afternoon.
+   *
+   * Nothing is corrected here — inventing a join date would be worse than
+   * showing an imperfect one. This just makes the spread visible if it grows.
+   */
+  const withSince = members.filter((m) => m.memberSince);
+  const createdCol = grid.headers.indexOf("Profile_DateCreated");
+  if (createdCol >= 0) {
+    const createdByName = new Map(
+      grid.rows.map((r) => [r[grid.headers.indexOf("Profile_ReportName")], r[createdCol]])
+    );
+    const looksBackfilled = withSince.filter(
+      (m) => createdByName.get(m.name) === m.memberSince
+    ).length;
+    check("most Member Since dates are real, not the migration timestamp",
+      looksBackfilled < withSince.length * 0.1,
+      `${looksBackfilled}/${withSince.length} match Profile_DateCreated exactly ` +
+        `(known: 9 Emeritus records backfilled on 10 May 2024)`);
+  }
+
+  check("every memberSince value parses to a real month",
+    members.filter((m) => m.memberSince).every((m) => parseYearMonth(m.memberSince) !== null),
+    members.filter((m) => m.memberSince && !parseYearMonth(m.memberSince))
+      .slice(0, 3).map((m) => `${m.name}: "${m.memberSince}"`).join(" · "));
+  check("the new contact fields arrived", filled((m) => m.contactName) > 150,
+    `contactName ${filled((m) => m.contactName)} · phone ${filled((m) => m.phone)} · address ${filled((m) => m.address1)}`);
+
+  // Confirms the same member reads the same in both shapes — the whole reason
+  // there is one parser and not two.
+  const taylor = members.find((m) => m.id === "629");
+  check("a known member is identical across export shapes",
+    !!taylor && taylor.name === "Taylor Macdonald" &&
+    taylor.sortName === "Macdonald, Taylor" && taylor.city === "Atlanta",
+    taylor ? `${taylor.name} / ${taylor.sortName} / ${taylor.city}` : "id 629 not found");
+
+  /* ── Coming soon ──────────────────────────────────────────────────────── */
+  check("the event filter reports itself PENDING, not simply absent",
+    eventFilterPending({ members, facets, source: { kind: "fixture", sheetUrl: null, readAt: "" } }));
+  check("pending is data-driven — it flips by itself when the column arrives",
+    isPending(members, (m) => m.lastEvent) &&
+    !isPending(members, (m) => m.name));
+
+  /* ── Nothing sensitive reached the fixture ────────────────────────────── */
+  for (const col of ["Profile_SSN", "Profile_TaxID", "Profile_Password", "Profile_BirthDate"]) {
+    check(`${col} is not in the local fixture`, !grid.headers.includes(col));
+  }
 }
 
 console.log(failures === 0 ? "\nAll checks passed.\n" : `\n${failures} check(s) FAILED.\n`);

@@ -20,8 +20,10 @@
  *     work, in any case. Someone reaching for the brake in a hurry should not
  *     have to guess which spelling this app happens to accept.
  *  2. `authorize` in `auth.ts` re-reads this before issuing a session, so the
- *     button on /signin is only presentation. Turning it off in Vercel takes
- *     effect on the next request — no redeploy needed for the gate itself.
+ *     button on /signin is only presentation — a stale bundle or cached page
+ *     can't get past it. NOTE: on Vercel, env vars are baked into a deployment,
+ *     so changing this REQUIRES A REDEPLOY before it takes effect. Locally it's
+ *     re-read per request.
  *  3. Every testing session is stamped and banner-flagged (below), so nobody is
  *     in testing mode without knowing it.
  *

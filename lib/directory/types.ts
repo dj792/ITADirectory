@@ -32,6 +32,37 @@ export type Member = {
   memberSince: string;
   /** "Last Event Signed Up for". Blank until the column exists in the export. */
   lastEvent: string;
+  /**
+   * "Last Event Attended" and "Event Count Past 12 Months" — engagement, as
+   * opposed to intent. Signing up and turning up are different facts, and the
+   * export keeps them in different columns, so the app does too. Shown on the
+   * member page; neither is a filter (yet).
+   */
+  lastEventAttended: string;
+  eventCount12mo: string;
+  /** Profile_WorkPhone — the organisation's own number. */
+  phone: string;
+  address1: string;
+  address2: string;
+  /**
+   * The main contact at a member organisation (`MC_*` in ProfileView) — the
+   * person to actually call. Their email is `email` above; the two sources agree
+   * that IS the directory address, so it isn't repeated here.
+   */
+  contactName: string;
+  contactTitle: string;
+  contactPhone: string;
+  /**
+   * TRUE when this profile is an ORGANISATION rather than a person
+   * (`Profile_OrgInd` / `Org Indicator`).
+   *
+   * A boolean, not a string, because it's a fact about the record rather than a
+   * value to display — and because the three-way Organisations / Individuals /
+   * Both filter has to be able to trust it. Roughly 3 in 4 ITA members are
+   * organisations, which is also why `sortName` contains a comma for only about
+   * a quarter of the directory: a company has no "Last, First" form.
+   */
+  isOrganization: boolean;
   website: string;
   city: string;
   state: string;
@@ -78,5 +109,16 @@ export type Directory = {
      * that admits it.
      */
     error?: string;
+    /**
+     * How the member count was arrived at, when a filter was applied. The SQL
+     * view is the whole contact database, so "202 members" is the output of a
+     * rule — and the strongest claim on the page should say which rule, in the
+     * number's own caption. Absent when the source was pre-filtered.
+     */
+    basis?: {
+      rowsRead: number;
+      nonMembersSkipped: number;
+      memberFlagColumn: string | null;
+    };
   };
 };

@@ -65,8 +65,9 @@ red **TESTING MODE ON** button, but you don't need it.
 member's name and email address. Fine while testing; not fine once the link is
 shared.
 
-To turn it off: set `TESTING_MODE=0` (or `false` / `off` / `no`) in Vercel —
-effective on the next request, no redeploy. At launch, also flip
+To turn it off: set `TESTING_MODE=0` (or `false` / `off` / `no`) in Vercel **and
+redeploy** — Vercel bakes env vars into a deployment, so a change alone does
+nothing until the next build. At launch, also flip
 `TESTING_MODE_DEFAULT` to `false` in `lib/testing-mode.ts` so unset means off.
 Sign out afterwards: sessions created through the bypass survive until then,
 showing a red banner meanwhile.

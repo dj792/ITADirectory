@@ -211,7 +211,16 @@ export async function readTab(
   return parsed;
 }
 
-/** The title of the spreadsheet's FIRST tab — used when no tab is configured. */
+/**
+ * The title of the spreadsheet's only tab, when no tab is configured.
+ *
+ * REFUSES on a multi-tab workbook rather than taking the first one. "First tab"
+ * was safe while the export was a single sheet; once companion tabs arrive
+ * (event registrations, renewals), dragging a tab left in Sheets would silently
+ * repoint the directory at the wrong data — and the page would render, just
+ * wrong. Naming the tab is one env var; guessing is a class of outage that
+ * looks like a data problem.
+ */
 export async function firstTabTitle(token: string, spreadsheetId: string): Promise<string> {
   const url =
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}` +
@@ -221,10 +230,21 @@ export async function firstTabTitle(token: string, spreadsheetId: string): Promi
   const data = (await resp.json()) as {
     sheets?: { properties?: { title?: string; index?: number } }[];
   };
-  const first = (data.sheets ?? [])
+  const tabs = (data.sheets ?? [])
     .map((s) => s.properties)
     .filter((p): p is { title: string; index: number } => !!p?.title)
-    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))[0];
-  if (!first) throw new Error("Directory spreadsheet has no tabs");
-  return first.title;
+    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+
+  if (tabs.length === 0) throw new Error("Directory spreadsheet has no tabs");
+
+  if (tabs.length > 1) {
+    throw new Error(
+      `This spreadsheet has ${tabs.length} tabs (${tabs.map((t) => t.title).join(", ")}) ` +
+        `and DIRECTORY_TAB isn't set, so there's no way to know which one holds the ` +
+        `members. Set DIRECTORY_TAB to the tab name — reordering tabs would otherwise ` +
+        `silently change what the directory reads.`
+    );
+  }
+
+  return tabs[0].title;
 }

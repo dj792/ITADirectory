@@ -30,12 +30,19 @@ export default function FilterSelect({
   value,
   options,
   onChange,
+  pending,
 }: {
   /** Shown when nothing is chosen, e.g. "Membership level" → "Membership level: all". */
   label: string;
   value: string;
   options: string[];
   onChange: (v: string) => void;
+  /**
+   * The source doesn't carry this field yet. Renders a disabled control saying
+   * so instead of the caller hiding the filter — a control that vanishes reads
+   * as a feature we removed. See `lib/directory/pending.ts`.
+   */
+  pending?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -175,6 +182,34 @@ export default function FilterSelect({
   }
 
   const isPlaceholder = value === "";
+
+  /*
+   * Pending: the control keeps its place in the grid so the row of filters
+   * doesn't reflow the day the data arrives, but it cannot be opened. `title`
+   * carries the reason on hover and `aria-describedby` gives it to a screen
+   * reader — a greyed box with no explanation is worse than no box at all.
+   */
+  if (pending) {
+    const noteId = `${baseId}-pending`;
+    return (
+      <div className="relative">
+        <div
+          aria-disabled="true"
+          aria-describedby={noteId}
+          title={pending}
+          className="flex w-full cursor-not-allowed items-center justify-between gap-2 rounded-lg border border-dashed border-hair bg-panel2/60 px-3 py-2.5 text-left text-[14px] text-sub"
+        >
+          <span className="truncate">{label}</span>
+          <span className="shrink-0 rounded-sm bg-hair/70 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sub">
+            Soon
+          </span>
+        </div>
+        <p id={noteId} className="sr-only">
+          {pending}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div ref={rootRef} className="relative">

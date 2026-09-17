@@ -3,7 +3,7 @@ import path from "path";
 import { getAccessToken, readTab, firstTabTitle, useMock } from "@/lib/sheets-core";
 import { directorySheetId, directoryTab, directorySheetUrl } from "./config";
 import { parseCsv } from "./csv";
-import { facetsOf, parseDirectory } from "./parse";
+import { facetsOf, parseDirectoryWithBasis } from "./parse";
 import type { Directory } from "./types";
 
 /**
@@ -17,7 +17,20 @@ import type { Directory } from "./types";
  * emails) and simply absent in production, where the sheet is configured.
  */
 
-const FIXTURE = path.join(process.cwd(), "data", "ProfileSelectorData.csv");
+/**
+ * Local fixtures, PRIMARY FIRST. `ProfileView.csv` is the SQL view that is now
+ * the real source; `ProfileSelectorData.csv` is the older report export, kept
+ * because the parser still reads it and because it's the only local copy of the
+ * event columns. Whichever exists is used, so a checkout with either one works.
+ */
+const FIXTURES = [
+  path.join(process.cwd(), "data", "ProfileView.csv"),
+  path.join(process.cwd(), "data", "ProfileSelectorData.csv"),
+];
+
+function fixturePath(): string | null {
+  return FIXTURES.find((p) => fs.existsSync(p)) ?? null;
+}
 
 /**
  * In-process cache. Next re-renders the search page on every request; without
@@ -109,16 +122,22 @@ async function loadFromSheet(): Promise<Directory> {
   // Blank DIRECTORY_TAB means "whatever the first tab is called this week".
   const tab = directoryTab() || (await firstTabTitle(token, id));
   const grid = await readTab(token, id, tab);
-  const members = parseDirectory(grid);
+  const { members, basis } = parseDirectoryWithBasis(grid);
   return {
     members,
     facets: facetsOf(members),
-    source: { kind: "sheet", sheetUrl: directorySheetUrl(), readAt: new Date().toISOString() },
+    source: {
+      kind: "sheet",
+      sheetUrl: directorySheetUrl(),
+      readAt: new Date().toISOString(),
+      basis,
+    },
   };
 }
 
 function loadFromFixture(): Directory {
-  if (!fs.existsSync(FIXTURE)) {
+  const FIXTURE = fixturePath();
+  if (!FIXTURE) {
     return {
       members: [],
       facets: { membershipLevel: [], status: [], lastEvent: [] },
@@ -126,10 +145,10 @@ function loadFromFixture(): Directory {
     };
   }
   const grid = parseCsv(fs.readFileSync(FIXTURE, "utf8"));
-  const members = parseDirectory(grid);
+  const { members, basis } = parseDirectoryWithBasis(grid);
   return {
     members,
     facets: facetsOf(members),
-    source: { kind: "fixture", sheetUrl: null, readAt: new Date().toISOString() },
+    source: { kind: "fixture", sheetUrl: null, readAt: new Date().toISOString(), basis },
   };
 }

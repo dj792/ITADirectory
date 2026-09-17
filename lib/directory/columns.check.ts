@@ -28,7 +28,10 @@ import { parseCsv } from "./csv";
 import type { SheetTab } from "@/lib/sheets-core";
 import type { Member } from "./types";
 
-const FIXTURE = path.join(process.cwd(), "data", "ProfileSelectorData.csv");
+const FIXTURE = [
+  path.join(process.cwd(), "data", "ProfileView.csv"),
+  path.join(process.cwd(), "data", "ProfileSelectorData.csv"),
+].find((p) => fs.existsSync(p)) ?? "";
 
 let failures = 0;
 function check(label: string, cond: boolean, detail = "") {
@@ -39,7 +42,7 @@ function check(label: string, cond: boolean, detail = "") {
   }
 }
 
-if (!fs.existsSync(FIXTURE)) {
+if (!FIXTURE) {
   console.log("fixture not present — skipping (this is fine on a clean checkout)");
   process.exit(0);
 }
@@ -49,6 +52,28 @@ const baseline = parseDirectory(original);
 
 console.log(`\nColumn-order safety — baseline ${baseline.length} members, ` +
   `${original.headers.length} columns\n`);
+
+/**
+ * A deterministic shuffle of `0..n-1` that is a REAL permutation at any width.
+ *
+ * This replaces a `(i * 7) % n` stride, which is only a permutation when 7 is
+ * coprime with n. That held at 19 columns and silently stopped holding at 168
+ * (7 divides 168), so the "shuffled" grid repeated some columns and dropped
+ * others — and the check failed with "member count 202 vs 0", reading exactly
+ * like a positional-access bug in the app. It wasn't; the test had broken.
+ *
+ * Fisher–Yates with a fixed-seed LCG: reproducible, and correct for every n.
+ */
+function shuffledOrder(n: number): number[] {
+  const order = Array.from({ length: n }, (_, i) => i);
+  let seed = 20260916;
+  const next = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return order;
+}
 
 /** Reorder a grid's columns by a permutation of its column indexes. */
 function permute(tab: SheetTab, order: number[]): SheetTab {
@@ -70,7 +95,9 @@ function addColumns(tab: SheetTab, names: string[], at: number): SheetTab {
 /** Every field of Member, so a comparison can't silently skip one. */
 const FIELDS: (keyof Member)[] = [
   "id", "name", "sortName", "organization", "email", "membershipLevel",
-  "status", "memberSince", "lastEvent", "website", "city", "state", "zip",
+  "status", "memberSince", "lastEvent", "lastEventAttended", "eventCount12mo",
+  "website", "city", "state", "zip", "phone", "address1", "address2",
+  "contactName", "contactTitle", "contactPhone", "isOrganization",
   "listingLevel", "haystack",
 ];
 
@@ -119,21 +146,31 @@ identical(
 // 4. Interleaved — a column added in the middle of ones we read, then the whole
 //    thing shuffled. The realistic messy case.
 {
-  const withMiddle = addColumns(original, ["Phone", "Tags"], 5);
-  const m = withMiddle.headers.length;
-  // Deterministic shuffle — a fixed stride coprime with the width, so it's a
-  // real permutation and the run is reproducible.
-  const order = Array.from({ length: m }, (_, i) => (i * 7) % m);
+  // "Tags"/"Notes" rather than "Phone": a filler column must be a name the
+  // parser does NOT look for, or the test is checking its own filler instead of
+  // the real data. `Phone` became a real candidate when the SQL view landed.
+  const withMiddle = addColumns(original, ["Tags", "Notes"], 5);
   identical(
     "new columns INTERLEAVED and all columns SHUFFLED → identical output",
-    permute(withMiddle, order)
+    permute(withMiddle, shuffledOrder(withMiddle.headers.length))
   );
 }
 
 // 5. A column we DO read, removed. Not about order — about the promise that a
 //    missing column degrades to blank rather than throwing or shifting.
 {
-  const i = original.headers.indexOf("Website");
+  /*
+   * Find the website column BY SEARCHING the headers, never by hard-coding one
+   * name. The old export calls it "Website" and the SQL view "Profile_Website",
+   * so `indexOf("Website")` silently matched nothing on the new fixture,
+   * removed no column, and then failed for "website isn't blank" — a test
+   * failure that looked like a parser failure. This is the same trap the
+   * Aligned KPIs footprint job documents for its drill-down columns: a
+   * hard-coded source header resolves to NOTHING on another export.
+   */
+  const i = original.headers.findIndex((h) => /website|web site/i.test(h));
+  check("found a website column to remove (test pre-condition)", i >= 0,
+    `headers searched: ${original.headers.length}`);
   const without = permute(
     original,
     Array.from({ length: n }, (_, k) => k).filter((k) => k !== i)
@@ -141,7 +178,7 @@ identical(
   const parsed = parseDirectory(without);
   check("a column we read, REMOVED → still parses, that field blank",
     parsed.length === baseline.length && parsed.every((m) => m.website === ""),
-    `${parsed.length} members`);
+    `${parsed.length} members, ${parsed.filter((m) => m.website).length} still have a website`);
   check("removing one column doesn't disturb the others",
     parsed.every((m, k) =>
       m.name === baseline[k].name &&

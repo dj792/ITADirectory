@@ -1,7 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import FilterSelect from "@/components/FilterSelect";
+import SegmentedControl from "@/components/SegmentedControl";
+import { filtersFromParams, filtersToQueryString, memberHref } from "@/lib/directory/url";
 import {
   applyFilters,
   hasActiveSearch,
@@ -10,6 +14,7 @@ import {
   type Filters,
 } from "@/lib/directory/search";
 import { monthYearLabel } from "@/lib/directory/date";
+import { eventFilterPending, PENDING_NOTE } from "@/lib/directory/pending";
 import type { Directory, Member } from "@/lib/directory/types";
 
 /**
@@ -20,7 +25,10 @@ import type { Directory, Member } from "@/lib/directory/types";
  * and debounce; `search.ts` is written to run on either side for that reason.
  */
 export default function MemberSearch({ directory }: { directory: Directory }) {
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  // The URL is the starting point, so a pasted or bookmarked link opens on its
+  // results, and coming back from a member page restores the exact search.
+  const searchParams = useSearchParams();
+  const [filters, setFilters] = useState<Filters>(() => filtersFromParams(searchParams));
 
   // Nothing is shown until the reader has actually asked for something. The
   // filtering is skipped entirely rather than run and hidden, so an idle page
@@ -35,17 +43,45 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
   // reads as "no matches" and sends people away thinking the name isn't listed.
   const typedTooShort = !active && filters.q.trim().length > 0;
 
+  /*
+   * Keep the address bar in step with the search.
+   *
+   * `window.history.replaceState`, NOT `router.replace` — this page is
+   * `force-dynamic`, so a Next navigation would re-run the server component and
+   * refetch the payload on EVERY KEYSTROKE. The native call updates the URL
+   * without touching the router, which is the supported way to sync search
+   * params when the data is already in the browser.
+   *
+   * REPLACE rather than PUSH, so typing eight letters doesn't bury the previous
+   * page under eight history entries that Back has to walk out of one at a
+   * time. The trade-off is deliberate: Back does not step through your own
+   * filter changes, but it DOES return you here, filters intact, from a member
+   * page — because that link carries the same params and is a real navigation.
+   */
+  const queryString = filtersToQueryString(filters);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const next = `${window.location.pathname}${queryString ? `?${queryString}` : ""}`;
+    if (next !== window.location.pathname + window.location.search) {
+      window.history.replaceState(null, "", next);
+    }
+  }, [queryString]);
+
   const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
   const isFiltered =
     !!filters.q ||
     !!filters.membershipLevel ||
     !!filters.status ||
-    !!filters.lastEvent;
+    !!filters.lastEvent ||
+    !!filters.kind;
 
-  // Only render a dropdown the data can actually populate. A filter whose only
-  // option is "all" is a dead control that still costs a column of width — and
-  // this way a column ITA hasn't added yet simply isn't there, then appears on
-  // its own the first time it carries values.
+  /*
+   * A dropdown appears when the data can populate it — EXCEPT where the field
+   * is known to be coming, which renders disabled and labelled instead of
+   * vanishing (`lib/directory/pending.ts`). The event filter is in that state
+   * now: the SQL view that replaced the report export has no event columns.
+   */
+  const eventsPending = eventFilterPending(directory);
   const dropdowns = [
     {
       label: "Membership level",
@@ -64,8 +100,9 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
       value: filters.lastEvent,
       options: directory.facets.lastEvent,
       onChange: (v: string) => set({ lastEvent: v }),
+      pending: eventsPending ? PENDING_NOTE.events : undefined,
     },
-  ].filter((d) => d.options.length > 0);
+  ].filter((d) => d.options.length > 0 || !!d.pending);
 
   return (
     <div className="space-y-5">
@@ -87,6 +124,27 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
           />
         </div>
 
+        {/*
+          Organisations / Individuals / Both. Sits directly under the search box
+          rather than among the dropdowns because it's a different kind of
+          choice — it narrows ANY search rather than selecting a value — and
+          because it always applies, while the dropdowns come and go with the
+          data. See `hasActiveSearch` for why it doesn't open the directory on
+          its own.
+        */}
+        <div className="mt-3">
+          <SegmentedControl
+            label="Show organisations, individuals, or both"
+            value={filters.kind}
+            onChange={(kind) => set({ kind })}
+            options={[
+              { value: "", label: "Both" },
+              { value: "org", label: "Organizations" },
+              { value: "individual", label: "Individuals" },
+            ]}
+          />
+        </div>
+
         {/* Every dropdown ANDs with the others and with the text box. */}
         {dropdowns.length > 0 && (
           <div
@@ -101,6 +159,7 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
                 value={d.value}
                 options={d.options}
                 onChange={d.onChange}
+                pending={d.pending}
               />
             ))}
           </div>
@@ -136,7 +195,13 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
           body={
             typedTooShort
               ? `Enter at least ${MIN_QUERY_LENGTH} characters, or pick a filter above.`
-              : "Type a name, company, or email address — or choose a filter above — to see members."
+              : filters.kind
+                ? // They've narrowed to a type and nothing appeared. Say why, or
+                  // it reads as a broken control rather than a deliberate gate.
+                  `Showing ${
+                    filters.kind === "org" ? "organizations" : "individuals"
+                  } only — now search by name, company, or email, or pick a filter above.`
+                : "Type a name, company, or email address — or choose a filter above — to see members."
           }
         />
       ) : results.length === 0 ? (
@@ -147,7 +212,7 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {results.map((m) => (
-            <MemberCard key={m.id} member={m} />
+            <MemberCard key={m.id} member={m} filters={filters} />
           ))}
         </ul>
       )}
@@ -183,12 +248,29 @@ function SearchGlyph() {
   );
 }
 
-function MemberCard({ member: m }: { member: Member }) {
+/**
+ * A result card. The WHOLE card opens the member page, via the "stretched link"
+ * pattern: the name is the real link and its `::after` covers the card.
+ *
+ * Nesting the email and website anchors inside a wrapping <a> would be invalid
+ * HTML and would swallow their clicks. Instead they sit at `relative z-10`,
+ * above the overlay, so "email this person" still works from the results list —
+ * which is what most people came to do, and forcing them through a detail page
+ * to get it would be a step backwards.
+ */
+function MemberCard({ member: m, filters }: { member: Member; filters: Filters }) {
   const place = [m.city, m.state].filter(Boolean).join(", ");
   const memberSince = monthYearLabel(m.memberSince);
   return (
-    <li className="flex flex-col rounded-xl border border-hair bg-panel p-4 shadow-sm transition hover:border-accent/40 hover:shadow-md">
-      <h2 className="text-[15px] font-semibold leading-snug text-strong">{m.name}</h2>
+    <li className="relative flex flex-col rounded-xl border border-hair bg-panel p-4 shadow-sm transition hover:border-accent/40 hover:shadow-md focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/30">
+      <h2 className="text-[15px] font-semibold leading-snug text-strong">
+        <Link
+          href={memberHref(m.id, filters)}
+          className="after:absolute after:inset-0 after:rounded-xl focus:outline-none"
+        >
+          {m.name}
+        </Link>
+      </h2>
       {m.organization && <p className="mt-0.5 text-[13px] text-sub">{m.organization}</p>}
 
       {(m.membershipLevel || m.status) && (
@@ -222,9 +304,10 @@ function MemberCard({ member: m }: { member: Member }) {
           <div>
             <dt className="sr-only">Email</dt>
             <dd>
+              {/* z-10: sits above the stretched link so the mailto still fires. */}
               <a
                 href={`mailto:${m.email}`}
-                className="break-all text-accent hover:underline"
+                className="relative z-10 break-all text-accent hover:underline"
               >
                 {m.email}
               </a>
@@ -250,7 +333,7 @@ function MemberCard({ member: m }: { member: Member }) {
                 href={href(m.website)}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="break-all text-accent hover:underline"
+                className="relative z-10 break-all text-accent hover:underline"
               >
                 {display(m.website)}
               </a>
