@@ -3,7 +3,8 @@ import path from "path";
 import {
   getAccessToken,
   readTab,
-  firstTabTitle,
+  resolveTab,
+  listTabs,
   useMock,
   type SheetTab,
 } from "@/lib/sheets-core";
@@ -132,9 +133,10 @@ export function invalidateDirectory(): void {
 async function loadFromSheet(): Promise<Directory> {
   const id = directorySheetId();
   const token = await getAccessToken();
-  // Blank DIRECTORY_TAB means "the only tab" — `firstTabTitle` refuses a
-  // multi-tab workbook rather than guessing which one holds the members.
-  const tab = directoryTab() || (await firstTabTitle(token, id));
+  // `resolveTab` validates a configured name against the workbook's real tabs
+  // and refuses a multi-tab workbook when nothing is configured, rather than
+  // guessing which tab holds the members.
+  const tab = await resolveTab(token, id, directoryTab(), "the members");
   const grid = await readTab(token, id, tab);
 
   /*
@@ -142,22 +144,35 @@ async function loadFromSheet(): Promise<Directory> {
    * the directory; a missing or malformed relations tab must never take down
    * the member list, which is what people came for. Failure here costs the
    * rosters and the related individuals, and nothing else.
+   *
+   * The reason IS surfaced though — see `relationsError` below. Silently
+   * serving a members-only directory when someone has configured a relations
+   * tab is indistinguishable from the tab being empty, and that ambiguity is
+   * exactly what cost a deploy cycle on the DIRECTORY_TAB naming.
    */
   let relationGrid = null;
+  let relationsError: string | undefined;
   const relTab = relationsTab();
   if (relTab) {
     try {
-      relationGrid = await readTab(token, id, relTab);
+      const resolved = await resolveTab(token, id, relTab, "the profile relations");
+      relationGrid = await readTab(token, id, resolved);
     } catch (err) {
-      console.error(`Relations tab "${relTab}" could not be read:`, err);
+      relationsError = err instanceof Error ? err.message : String(err);
+      console.error(`Relations tab "${relTab}" could not be read:`, relationsError);
     }
   }
 
-  return compose(grid, relationGrid, {
-    kind: "sheet",
-    sheetUrl: directorySheetUrl(),
-    readAt: new Date().toISOString(),
-  });
+  return compose(
+    grid,
+    relationGrid,
+    {
+      kind: "sheet",
+      sheetUrl: directorySheetUrl(),
+      readAt: new Date().toISOString(),
+    },
+    relationsError
+  );
 }
 
 /**
@@ -167,7 +182,8 @@ async function loadFromSheet(): Promise<Directory> {
 function compose(
   profileGrid: SheetTab,
   relationGrid: SheetTab | null,
-  source: Omit<Directory["source"], "basis">
+  source: Omit<Directory["source"], "basis">,
+  relationsError?: string
 ): Directory {
   const { profiles, basis } = parseProfiles(profileGrid);
   const byId = new Map(profiles.map((p) => [p.id, p]));
@@ -204,6 +220,7 @@ function compose(
     rosters: resolved,
     source: {
       ...source,
+      relationsError,
       basis: { ...basis, relatedIndividuals: counts.relatedIndividuals },
     },
   };

@@ -2,8 +2,19 @@ import crypto from "crypto";
 import BrandMark from "@/components/BrandMark";
 import SiteFooter from "@/components/SiteFooter";
 import { auth } from "@/auth";
-import { getAccessToken, readTab, firstTabTitle, resolvePrivateKey } from "@/lib/sheets-core";
-import { directorySheetId, directoryTab, directorySheetUrl } from "@/lib/directory/config";
+import {
+  getAccessToken,
+  readTab,
+  listTabs,
+  resolveTab,
+  resolvePrivateKey,
+} from "@/lib/sheets-core";
+import {
+  directorySheetId,
+  directoryTab,
+  relationsTab,
+  directorySheetUrl,
+} from "@/lib/directory/config";
 import { parseDirectory } from "@/lib/directory/parse";
 import { testingModeEnabled } from "@/lib/testing-mode";
 
@@ -134,11 +145,9 @@ async function probe(): Promise<Row[]> {
     detail: saEmail || "NOT SET",
   });
 
-  rows.push({
-    label: "DIRECTORY_TAB",
-    ok: null,
-    detail: directoryTab() || "(blank — reads the first tab, which is correct)",
-  });
+  // DIRECTORY_TAB and DIRECTORY_RELATIONS_TAB are reported in stage 4b, once
+  // the workbook's real tab names are known — a configured value means nothing
+  // on its own, and the mismatch is the thing worth seeing.
 
   // ── Stage 1: the key, as a STRING ─────────────────────────────────────────
   const rawKey = env("GOOGLE_SA_PRIVATE_KEY");
@@ -209,13 +218,13 @@ async function probe(): Promise<Row[]> {
   }
 
   // ── Stage 4: the sheet is readable — the sharing check ───────────────────
-  let tabTitle = directoryTab();
+  let allTabs: string[];
   try {
-    if (!tabTitle) tabTitle = await firstTabTitle(token, resolvedId);
+    allTabs = await listTabs(token, resolvedId);
     rows.push({
       label: "Sheet is readable",
       ok: true,
-      detail: `first tab: "${tabTitle}"`,
+      detail: `${allTabs.length} tab${allTabs.length === 1 ? "" : "s"}`,
     });
   } catch (err) {
     return [
@@ -228,6 +237,61 @@ async function probe(): Promise<Row[]> {
           `open the sheet and share it (Viewer) with ${saEmail || "the service account"}.`,
       },
     ];
+  }
+
+  /*
+   * ── Stage 4b: the TABS ─────────────────────────────────────────────────
+   * Added after a deploy was lost to it. The workbook's tabs had been named
+   * after the env vars themselves ("DIRECTORY_TAB", "DIRECTORY_RELATIONS_TAB"),
+   * so the error — accurate — read as a contradiction. Printing the actual tab
+   * names beside the configured values makes the mismatch obvious at a glance,
+   * which is the whole point of this page.
+   */
+  rows.push({
+    label: "Tabs in the workbook",
+    ok: null,
+    detail: allTabs.map((t) => `"${t}"`).join(" · "),
+  });
+
+  let tabTitle: string;
+  try {
+    tabTitle = await resolveTab(token, resolvedId, directoryTab(), "the members");
+    rows.push({
+      label: "DIRECTORY_TAB",
+      ok: true,
+      detail: directoryTab()
+        ? `set to "${directoryTab()}" → resolves to tab "${tabTitle}"`
+        : `not set · only one tab, so using "${tabTitle}"`,
+    });
+  } catch (err) {
+    return [...rows, { label: "DIRECTORY_TAB", ok: false, detail: msg(err) }];
+  }
+
+  // The relations tab is optional; report all three states distinctly.
+  const relTab = relationsTab();
+  if (!relTab) {
+    rows.push({
+      label: "DIRECTORY_RELATIONS_TAB",
+      ok: null,
+      detail:
+        "not set — the directory is members only. Set it to publish member " +
+        "rosters and admit related individuals.",
+    });
+  } else {
+    try {
+      const resolvedRel = await resolveTab(token, resolvedId, relTab, "the relations");
+      rows.push({
+        label: "DIRECTORY_RELATIONS_TAB",
+        ok: true,
+        detail: `set to "${relTab}" → resolves to tab "${resolvedRel}"`,
+      });
+    } catch (err) {
+      rows.push({
+        label: "DIRECTORY_RELATIONS_TAB",
+        ok: false,
+        detail: `${msg(err)} (the member list still works without it)`,
+      });
+    }
   }
 
   // ── Stage 5: the rows parse into members ─────────────────────────────────

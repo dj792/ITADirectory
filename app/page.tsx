@@ -156,6 +156,18 @@ function SourceNote({ directory }: { directory: Awaited<ReturnType<typeof loadDi
         </>
       )}
       {basisNote}
+      {/*
+        The member list is fine but the rosters aren't. Said out loud, because a
+        directory with no rosters looks exactly like one whose relations tab is
+        empty — and that ambiguity is what makes a misconfiguration expensive.
+      */}
+      {directory.source.relationsError && (
+        <>
+          <br />
+          <strong className="text-white">Rosters unavailable.</strong>{" "}
+          {directory.source.relationsError}
+        </>
+      )}
     </>
   );
 }

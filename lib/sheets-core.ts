@@ -221,7 +221,8 @@ export async function readTab(
  * wrong. Naming the tab is one env var; guessing is a class of outage that
  * looks like a data problem.
  */
-export async function firstTabTitle(token: string, spreadsheetId: string): Promise<string> {
+/** Every tab title in the workbook, in tab order. */
+export async function listTabs(token: string, spreadsheetId: string): Promise<string[]> {
   const url =
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}` +
     `?fields=sheets.properties(title,index)`;
@@ -230,21 +231,107 @@ export async function firstTabTitle(token: string, spreadsheetId: string): Promi
   const data = (await resp.json()) as {
     sheets?: { properties?: { title?: string; index?: number } }[];
   };
-  const tabs = (data.sheets ?? [])
+  return (data.sheets ?? [])
     .map((s) => s.properties)
     .filter((p): p is { title: string; index: number } => !!p?.title)
-    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+    .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+    .map((p) => p.title);
+}
 
-  if (tabs.length === 0) throw new Error("Directory spreadsheet has no tabs");
+/**
+ * The names of this app's tab settings. Used to catch one specific, very
+ * repeatable mistake — see `envNameLookalike`.
+ */
+const TAB_ENV_NAMES = ["DIRECTORY_TAB", "DIRECTORY_RELATIONS_TAB"];
 
-  if (tabs.length > 1) {
+/**
+ * Has someone named the TABS after the ENVIRONMENT VARIABLES?
+ *
+ * This happened on the first real deploy: the workbook's two tabs were called
+ * `DIRECTORY_TAB` and `DIRECTORY_RELATIONS_TAB`. The old error message was
+ * factually correct — "this spreadsheet has 2 tabs (DIRECTORY_TAB,
+ * DIRECTORY_RELATIONS_TAB) and DIRECTORY_TAB isn't set" — and read like a
+ * contradiction, because the tab names and the setting names were the same
+ * words. A true message that looks self-contradictory is a failed message.
+ *
+ * The variable names invite it, so the app should recognise it rather than
+ * expect people not to make it.
+ */
+function envNameLookalike(tabs: string[]): string | null {
+  const hits = tabs.filter((t) =>
+    TAB_ENV_NAMES.includes(t.trim().toUpperCase().replace(/\s+/g, "_"))
+  );
+  if (hits.length === 0) return null;
+  return (
+    ` NOTE: ${hits.length === 1 ? "a tab is" : "the tabs are"} named ` +
+    `${hits.map((h) => `"${h}"`).join(" and ")} — ${
+      hits.length === 1 ? "that is" : "those are"
+    } the name${hits.length === 1 ? "" : "s"} of the SETTING${
+      hits.length === 1 ? "" : "S"
+    }, not a tab name. Either rename the tab${hits.length === 1 ? "" : "s"} to ` +
+    `something descriptive (e.g. "Profiles" and "ProfileRelations") and point the ` +
+    `settings at those names, or set DIRECTORY_TAB to the literal text "${hits[0]}".`
+  );
+}
+
+/**
+ * Resolve the tab to read: the configured name when set, otherwise the only tab.
+ *
+ * Tolerant of case and surrounding whitespace, because a value pasted into an
+ * env manager routinely arrives with a trailing space and Google's own tab
+ * names are case-sensitive — a mismatch there produces an opaque 400 from the
+ * values endpoint rather than anything about tabs.
+ *
+ * REFUSES rather than guessing on a multi-tab workbook. "First tab" was safe
+ * while the export was a single sheet; once companion tabs exist, dragging one
+ * left in Sheets would silently repoint the directory and the page would still
+ * render — just wrong.
+ */
+export async function resolveTab(
+  token: string,
+  spreadsheetId: string,
+  configured: string,
+  purpose = "the members"
+): Promise<string> {
+  const tabs = await listTabs(token, spreadsheetId);
+  if (tabs.length === 0) throw new Error("This spreadsheet has no tabs.");
+
+  const want = configured.trim();
+  if (want) {
+    const exact = tabs.find((t) => t === want);
+    if (exact) return exact;
+    // Case- and space-insensitive second pass, so a near-miss resolves instead
+    // of failing with Google's "Unable to parse range".
+    const loose = tabs.find(
+      (t) => t.trim().toLowerCase() === want.toLowerCase()
+    );
+    if (loose) return loose;
+
     throw new Error(
-      `This spreadsheet has ${tabs.length} tabs (${tabs.map((t) => t.title).join(", ")}) ` +
-        `and DIRECTORY_TAB isn't set, so there's no way to know which one holds the ` +
-        `members. Set DIRECTORY_TAB to the tab name — reordering tabs would otherwise ` +
-        `silently change what the directory reads.`
+      `No tab named "${want}" in this spreadsheet. Its tabs are: ` +
+        `${tabs.map((t) => `"${t}"`).join(", ")}. Check the setting for a typo, ` +
+        `extra spaces, or a tab that has been renamed.` +
+        (envNameLookalike(tabs) ?? "")
     );
   }
 
-  return tabs[0].title;
+  if (tabs.length > 1) {
+    throw new Error(
+      `This spreadsheet has ${tabs.length} tabs (${tabs
+        .map((t) => `"${t}"`)
+        .join(", ")}) and DIRECTORY_TAB isn't set, so there's no way to know which ` +
+        `one holds ${purpose}. Set DIRECTORY_TAB to one of those names exactly.` +
+        (envNameLookalike(tabs) ?? "")
+    );
+  }
+
+  return tabs[0];
+}
+
+/**
+ * @deprecated Use `resolveTab`, which also validates a configured name.
+ * Kept as a thin wrapper so any remaining caller keeps working.
+ */
+export async function firstTabTitle(token: string, spreadsheetId: string): Promise<string> {
+  return resolveTab(token, spreadsheetId, "");
 }

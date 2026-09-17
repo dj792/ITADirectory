@@ -145,6 +145,13 @@ export type Directory = {
      */
     error?: string;
     /**
+     * Why the RELATIONS tab couldn't be read, when one was configured. The
+     * member list is unaffected — but a directory silently missing every
+     * roster looks identical to one whose relations tab is empty, and that
+     * ambiguity is what makes a misconfiguration expensive to find.
+     */
+    relationsError?: string;
+    /**
      * How the member count was arrived at, when a filter was applied. The SQL
      * view is the whole contact database, so "202 members" is the output of a
      * rule — and the strongest claim on the page should say which rule, in the
