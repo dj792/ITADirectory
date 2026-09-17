@@ -12,7 +12,7 @@ import type { Directory, Member } from "./types";
  * when empty, so nothing would break. That is exactly the problem. A filter
  * that silently disappears looks like a feature we removed, or a bug; and
  * six months on, nobody remembers the page ever offered it. So a field known to
- * be coming is shown as PENDING: visible, disabled, labelled.
+ * be coming is shown as PENDING: visible, disabled, labeled.
  *
  * ONE definition of "pending", used by the search page and the member page
  * alike — otherwise the dropdown and the detail rows drift apart, and the day

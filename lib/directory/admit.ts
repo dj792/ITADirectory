@@ -18,7 +18,7 @@ import type { Member } from "./types";
  * ── THE TWO RULES THAT KEEP IT HONEST ─────────────────────────────────────
  *
  * **A person is admitted through a CURRENT link to a MEMBER.** Not to any
- * organisation — 2,929 contacts include staff of former members and prospects,
+ * organization — 2,929 contacts include staff of former members and prospects,
  * and admitting those would publish people whose firm has no relationship with
  * ITA at all. `linksByOrg` has already dropped Former Employer/Employee.
  *
@@ -32,7 +32,7 @@ import type { Member } from "./types";
 export type AdmitResult = {
   /** Members plus admitted individuals, ready to search. */
   members: Member[];
-  /** Roster per organisation id, for the member page. */
+  /** Roster per organization id, for the member page. */
   rosters: Map<string, Link[]>;
   counts: {
     members: number;
@@ -46,7 +46,7 @@ export function admit(profiles: Member[], rosters: Map<string, Link[]>): AdmitRe
   const byId = new Map(profiles.map((p) => [p.id, p]));
   const memberIds = new Set(profiles.filter((p) => p.isMember).map((p) => p.id));
 
-  // Keep only rosters belonging to a MEMBER organisation. A former member's
+  // Keep only rosters belonging to a MEMBER organization. A former member's
   // staff list is real data and still must not be published.
   const memberRosters = new Map<string, Link[]>();
   for (const [orgId, links] of rosters) {

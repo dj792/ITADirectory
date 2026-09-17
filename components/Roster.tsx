@@ -4,7 +4,7 @@ import type { Filters } from "@/lib/directory/search";
 import type { RosterEntry } from "@/lib/directory/types";
 
 /**
- * The people at a member organisation.
+ * The people at a member organization.
  *
  * Laid out as in the reference design: name and title on the left, email and
  * phone on the right, and a badge in the bottom-right corner for the main or

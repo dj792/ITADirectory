@@ -92,7 +92,7 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
 
   /*
    * A dropdown appears when the data can populate it — EXCEPT where the field
-   * is known to be coming, which renders disabled and labelled instead of
+   * is known to be coming, which renders disabled and labeled instead of
    * vanishing (`lib/directory/pending.ts`). The event filter is in that state
    * now: the SQL view that replaced the report export has no event columns.
    */
@@ -147,7 +147,7 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
         </div>
 
         {/*
-          Organisations / Individuals / Both. Sits directly under the search box
+          Organizations / Individuals / Both. Sits directly under the search box
           rather than among the dropdowns because it's a different kind of
           choice — it narrows ANY search rather than selecting a value — and
           because it always applies, while the dropdowns come and go with the
@@ -156,7 +156,7 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
         */}
         <div className="mt-3">
           <SegmentedControl
-            label="Show organisations, individuals, or both"
+            label="Show organizations, individuals, or both"
             value={filters.kind}
             onChange={(kind) => set({ kind })}
             options={[
@@ -303,7 +303,7 @@ function MemberCard({ member: m, filters }: { member: Member; filters: Filters }
       {/*
         A related individual's line names their ROLE and their FIRM, because
         that's what identifies them ("VP Sales at Ascentium Capital"). For a
-        member it's their own organisation field.
+        member it's their own organization field.
       */}
       {!m.isMember && (m.titleAtOrg || m.relatedOrgName) ? (
         <p className="mt-0.5 text-[13px] leading-snug text-sub">

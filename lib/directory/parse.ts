@@ -76,7 +76,7 @@ const COLS = {
    * export dates.
    */
   memberFlag: ["Member", "Profile_Member", "Is Member"],
-  /** True ⇒ the profile is an organisation, not a person. */
+  /** True ⇒ the profile is an organization, not a person. */
   orgFlag: ["Org Indicator", "Profile_OrgInd", "Organization Indicator", "OrgInd"],
   website: ["Website", "Profile_Website", "Web Site", "URL"],
   city: ["City", "Profile_City"],
@@ -86,7 +86,7 @@ const COLS = {
   address1: ["Profile_Address1", "Address1", "Address"],
   address2: ["Profile_Address2", "Address2"],
   /**
-   * The main contact — the person to actually call at a member ORGANISATION.
+   * The main contact — the person to actually call at a member ORGANIZATION.
    * Their EMAIL is already `email` above (the two sources agree it's the
    * directory address), so this is name, relationship title and phone only;
    * repeating the address here would print it twice on the page.
@@ -167,7 +167,7 @@ function isMemberRow(row: string[], flagIdx: number, id: string): boolean {
 }
 
 /**
- * What the parse did, so the page can say it. Modelled on the Aligned KPIs
+ * What the parse did, so the page can say it. Modeled on the Aligned KPIs
  * `CountBasisNote`: the strongest claim on the screen is how many members there
  * are, and a filter that silently changed that number should be visible in the
  * number's own caption rather than only in this file.

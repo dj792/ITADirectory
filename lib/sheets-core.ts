@@ -138,7 +138,7 @@ async function mintAccessToken(): Promise<string> {
 
 /* ------------------------------------------------------------------ quota --
  * Google allows 60 Sheets reads per minute per user, and the service account is
- * one user across BOTH this app and Aligned KPIs. Two defences live here so
+ * one user across BOTH this app and Aligned KPIs. Two defenses live here so
  * every caller gets them: retry on 429/5xx, and a short read cache.
  */
 
@@ -254,7 +254,7 @@ const TAB_ENV_NAMES = ["DIRECTORY_TAB", "DIRECTORY_RELATIONS_TAB"];
  * contradiction, because the tab names and the setting names were the same
  * words. A true message that looks self-contradictory is a failed message.
  *
- * The variable names invite it, so the app should recognise it rather than
+ * The variable names invite it, so the app should recognize it rather than
  * expect people not to make it.
  */
 function envNameLookalike(tabs: string[]): string | null {

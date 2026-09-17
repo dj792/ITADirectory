@@ -76,7 +76,7 @@ export function filtersFromParams(params: ParamInput): Filters {
     membershipLevels: readAll(params, PARAM.membershipLevels),
     status: read(params, PARAM.status),
     lastEvent: read(params, PARAM.lastEvent),
-    // A closed set, so an unrecognised value falls back to "both" rather than
+    // A closed set, so an unrecognized value falls back to "both" rather than
     // filtering on a string no member can match and showing an empty page.
     kind: kind === "org" || kind === "individual" ? kind : "",
   };

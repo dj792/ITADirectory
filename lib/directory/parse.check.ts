@@ -76,7 +76,7 @@ console.log(
  * flag reads True throughout and the filter is a no-op.
  *
  * Both directions are asserted, so neither source can drift into the other's
- * behaviour unnoticed.
+ * behavior unnoticed.
  */
 if (isProfileView) {
   check("the member flag was found and applied",
@@ -509,17 +509,17 @@ function countBlankPrimaryCategory(csv: string): number {
       .every((l) => !/^[=+@]/.test(l) && !/,[=+@]/.test(l)));
 }
 
-/* ── Organisations / Individuals / Both ──────────────────────────────────── */
+/* ── Organizations / Individuals / Both ──────────────────────────────────── */
 {
   const orgs = members.filter((m) => m.isOrganization);
   const people = members.filter((m) => !m.isOrganization);
   check("the org flag splits the membership, not all-or-nothing",
     orgs.length > 0 && people.length > 0 && orgs.length + people.length === members.length,
-    `${orgs.length} organisations · ${people.length} individuals`);
+    `${orgs.length} organizations · ${people.length} individuals`);
 
   check("Both is the default and filters nothing",
     applyFilters(members, { ...EMPTY_FILTERS, kind: "" }).length === members.length);
-  check("Organizations returns only organisations",
+  check("Organizations returns only organizations",
     applyFilters(members, { ...EMPTY_FILTERS, kind: "org" }).every((m) => m.isOrganization));
   check("Individuals returns only individuals",
     applyFilters(members, { ...EMPTY_FILTERS, kind: "individual" })
@@ -583,14 +583,14 @@ if (isProfileView) {
     members.filter((m) => m.sortName.includes(",")).length > individuals.length,
     `${members.filter((m) => m.sortName.includes(",")).length} commas vs ${individuals.length} individuals`);
   /*
-   * `Profile_ReportName` is the search field for BOTH organisations and
+   * `Profile_ReportName` is the search field for BOTH organizations and
    * individuals — for a person it holds the full "First Last". Nothing else is
    * needed: `Profile_FirstName`/`LastName` are populated on only the 7
    * individual records, so indexing them would add nothing and invite someone
    * to "fix" search by reaching for them.
    *
    * Asserted on every individual in the export, by first name, last name and
-   * full name, because this is the behaviour a member notices first.
+   * full name, because this is the behavior a member notices first.
    */
   const people = members.filter((m) => !m.isOrganization);
   const finds = (q: string, id: string) =>
@@ -614,7 +614,7 @@ if (isProfileView) {
       const p = nameParts(m.name);
       return p.length < 2 || finds(`${p[p.length - 1]} ${p[0]}`, m.id);
     }));
-  check("organisations are findable by their name",
+  check("organizations are findable by their name",
     members.filter((m) => m.isOrganization).every((m) => finds(m.name, m.id)));
 
   check("email prefers the main contact, not the org alias",

@@ -22,7 +22,7 @@ export function normalize(s: string): string {
 }
 
 /**
- * Organisations, individuals, or both. `""` IS "both" and is the default —
+ * Organizations, individuals, or both. `""` IS "both" and is the default —
  * a named default rather than a third enum value, so every place that asks
  * "is this filter set?" gets the right answer without special-casing.
  */
@@ -89,8 +89,8 @@ export const MIN_QUERY_LENGTH = 3;
  * request on its own. Raw length is used rather than the normalized form so
  * "3 characters" means what the person typed, not what survived normalizing.
  *
- * `kind` IS DELIBERATELY EXCLUDED. Organisations / Individuals / Both is a
- * REFINEMENT, not a request: "Organisations" on its own is three quarters of
+ * `kind` IS DELIBERATELY EXCLUDED. Organizations / Individuals / Both is a
+ * REFINEMENT, not a request: "Organizations" on its own is three quarters of
  * the membership, which is the wall-of-everyone this gate exists to prevent —
  * and it would arrive without anyone having typed a thing. It narrows a search
  * someone has already made. Selecting it while idle leaves the prompt up, and

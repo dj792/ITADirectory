@@ -13,7 +13,7 @@
  *
  * Implemented as a RADIO GROUP, not buttons: it is one question with mutually
  * exclusive answers, which is what radios are, and it gets arrow-key navigation
- * and correct screen-reader announcement ("Organisations, radio button, 2 of
+ * and correct screen-reader announcement ("Organizations, radio button, 2 of
  * 3") for free. The native inputs stay in the DOM and are visually hidden
  * rather than replaced, so focus, labels and form semantics all still work.
  */

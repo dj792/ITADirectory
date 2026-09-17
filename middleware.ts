@@ -31,7 +31,15 @@ export default auth((req) => {
   if (
     pathname.startsWith("/api/auth") ||
     pathname === "/signin" ||
-    pathname.startsWith("/signin/")
+    pathname.startsWith("/signin/") ||
+    // The release notes are for ITA to read while reviewing, so they must not
+    // require an account. Safe to leave open because the page is STATIC PROSE
+    // — no sheet read, no member names, no email addresses, nothing derived
+    // from the directory. It is unlisted rather than secret (see the page for
+    // how), and exempting it here is what keeps the link we emailed working
+    // once sign-in is switched on. Do NOT extend this exemption to a page that
+    // renders member data.
+    pathname === "/releaseNotes.html"
   ) {
     return NextResponse.next();
   }

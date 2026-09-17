@@ -126,7 +126,7 @@ export default async function MemberPage({ params, searchParams }: Props) {
           <Details member={member} />
         </div>
 
-        {/* A member organisation's people. Absent for individuals and for
+        {/* A member organization's people. Absent for individuals and for
             orgs with no recorded relations. */}
         <Roster entries={directory.rosters[member.id] ?? []} filters={filters} />
       </main>
@@ -187,7 +187,7 @@ function Details({ member: m }: { member: Member }) {
   // `whitespace-pre-line` renders the newlines the address was built with.
   add("Address", <span className="whitespace-pre-line">{address}</span>, !!address);
 
-  // The main contact at a member organisation. Their email is the directory
+  // The main contact at a member organization. Their email is the directory
   // address shown above, so it isn't repeated.
   add(
     "Main contact",

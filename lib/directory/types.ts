@@ -40,12 +40,12 @@ export type Member = {
    */
   lastEventAttended: string;
   eventCount12mo: string;
-  /** Profile_WorkPhone — the organisation's own number. */
+  /** Profile_WorkPhone — the organization's own number. */
   phone: string;
   address1: string;
   address2: string;
   /**
-   * The main contact at a member organisation (`MC_*` in ProfileView) — the
+   * The main contact at a member organization (`MC_*` in ProfileView) — the
    * person to actually call. Their email is `email` above; the two sources agree
    * that IS the directory address, so it isn't repeated here.
    */
@@ -53,19 +53,19 @@ export type Member = {
   contactTitle: string;
   contactPhone: string;
   /**
-   * TRUE when this profile is an ORGANISATION rather than a person
+   * TRUE when this profile is an ORGANIZATION rather than a person
    * (`Profile_OrgInd` / `Org Indicator`).
    *
    * A boolean, not a string, because it's a fact about the record rather than a
-   * value to display — and because the three-way Organisations / Individuals /
+   * value to display — and because the three-way Organizations / Individuals /
    * Both filter has to be able to trust it. Roughly 3 in 4 ITA members are
-   * organisations, which is also why `sortName` contains a comma for only about
+   * organizations, which is also why `sortName` contains a comma for only about
    * a quarter of the directory: a company has no "Last, First" form.
    */
   isOrganization: boolean;
   /**
    * TRUE for an ITA member. FALSE for someone admitted because they are
-   * CURRENTLY LINKED to a member organisation — typically an employee.
+   * CURRENTLY LINKED to a member organization — typically an employee.
    *
    * The directory is members plus their people, so `Member` is now a slight
    * misnomer for the record type; the flag is what keeps the distinction
@@ -74,7 +74,7 @@ export type Member = {
    */
   isMember: boolean;
   /**
-   * For a related individual: the member organisation they're linked to, and
+   * For a related individual: the member organization they're linked to, and
    * their title there (`Title` on the relation — their role AT that org, not
    * their own job title). Empty for members themselves.
    */
@@ -100,7 +100,7 @@ export type Member = {
 };
 
 /**
- * One person on a member organisation's roster, resolved for display.
+ * One person on a member organization's roster, resolved for display.
  *
  * A plain record rather than a `Member` reference because it crosses the
  * server→client boundary and only needs what the roster shows. `title` is the
@@ -161,14 +161,14 @@ export type Directory = {
       rowsRead: number;
       nonMembersSkipped: number;
       memberFlagColumn: string | null;
-      /** Individuals admitted via a current link to a member organisation. */
+      /** Individuals admitted via a current link to a member organization. */
       relatedIndividuals?: number;
     };
   };
   /**
-   * Roster per member-organisation id: its people, with titles and contact
+   * Roster per member-organization id: its people, with titles and contact
    * flags. Empty when there's no relations tab, which is the members-only
-   * behaviour the app had before.
+   * behavior the app had before.
    */
   rosters: Record<string, RosterEntry[]>;
 };

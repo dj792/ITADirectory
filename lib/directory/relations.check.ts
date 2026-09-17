@@ -54,7 +54,7 @@ check("Former Employer/Employee are NOT current",
   `${relations.filter((r) => /^former/i.test(r.relationType)).length} former rows`);
 check("the export still contains former relations to exclude",
   relations.some((r) => /^former/i.test(r.relationType)));
-check("unrecognised relation types are inert",
+check("unrecognized relation types are inert",
   relations.filter((r) => /spouse|parent|subsidiary/i.test(r.relationType))
     .every((r) => !r.current));
 
@@ -88,9 +88,9 @@ check("unrecognised relation types are inert",
 }
 
 // ── Direction ─────────────────────────────────────────────────────────────
-check("every roster belongs to an ORGANISATION",
+check("every roster belongs to an ORGANIZATION",
   [...result.rosters.keys()].every((id) => byId.get(id)?.isOrganization === true));
-check("no roster entry is itself an organisation",
+check("no roster entry is itself an organization",
   [...result.rosters.values()].flat()
     .every((l) => byId.get(l.personId)?.isOrganization === false));
 check("both stored directions collapse to ONE link per person",
@@ -113,7 +113,7 @@ check("the directory is far smaller than the contact database",
 
 /*
  * The leak test. Anyone admitted who is neither a member nor CURRENTLY linked
- * to a member organisation would be a person published with no relationship to
+ * to a member organization would be a person published with no relationship to
  * ITA at all — the exact failure this module exists to prevent.
  */
 {
@@ -156,15 +156,15 @@ check("a former employee of a member is not admitted through that link", (() => 
   const related = result.members.filter((m) => !m.isMember);
   check("related individuals are flagged NOT members",
     related.every((m) => !m.isMember));
-  check("each names the member organisation that admitted them",
+  check("each names the member organization that admitted them",
     related.every((m) => m.relatedOrgId && m.relatedOrgName),
     `${related.filter((m) => !m.relatedOrgName).length} without one`);
-  check("the admitting organisation IS a member",
+  check("the admitting organization IS a member",
     related.every((m) => memberIds.has(m.relatedOrgId)));
-  check("most carry a title at that organisation",
+  check("most carry a title at that organization",
     related.filter((m) => m.titleAtOrg).length > related.length * 0.5,
     `${related.filter((m) => m.titleAtOrg).length}/${related.length}`);
-  check("no related individual is an organisation",
+  check("no related individual is an organization",
     related.every((m) => !m.isOrganization));
   check("they are searchable by name",
     related.every((m) => m.haystack.length > 0));
