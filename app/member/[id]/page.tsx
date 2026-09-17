@@ -2,13 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import BrandMark from "@/components/BrandMark";
 import SignOutButton from "@/components/SignOutButton";
+import Roster from "@/components/Roster";
 import SiteFooter from "@/components/SiteFooter";
 import TestingModeBanner from "@/components/TestingModeBanner";
 import { auth } from "@/auth";
 import { monthYearLabel } from "@/lib/directory/date";
 import { PENDING_NOTE } from "@/lib/directory/pending";
 import { loadDirectory } from "@/lib/directory/service";
-import { filtersFromParams, searchHref } from "@/lib/directory/url";
+import { filtersFromParams, memberHref, searchHref } from "@/lib/directory/url";
 import { isTestingSession, testingModeEnabled } from "@/lib/testing-mode";
 import type { Member } from "@/lib/directory/types";
 
@@ -88,7 +89,26 @@ export default async function MemberPage({ params, searchParams }: Props) {
             <p className="mt-1 text-[16px] text-sub">{member.organization}</p>
           )}
 
-          {(member.membershipLevel || member.status) && (
+          {/*
+            A person admitted via a member firm is NOT an ITA member, and the
+            page must not imply otherwise. Their membership badges are their
+            employer's, so instead of showing those, say where they work and
+            link to the firm whose membership actually brought them here.
+          */}
+          {!member.isMember && member.relatedOrgName && (
+            <p className="mt-2 text-[14px] text-sub">
+              {member.titleAtOrg && <>{member.titleAtOrg} · </>}
+              <Link
+                href={memberHref(member.relatedOrgId, filters)}
+                className="text-accent hover:underline"
+              >
+                {member.relatedOrgName}
+              </Link>
+              <span className="ml-1 text-sub">(ITA member)</span>
+            </p>
+          )}
+
+          {member.isMember && (member.membershipLevel || member.status) && (
             <p className="mt-3 flex flex-wrap gap-1.5">
               {member.membershipLevel && (
                 <span className="inline-block rounded-sm bg-accent/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-accentDark">
@@ -105,6 +125,10 @@ export default async function MemberPage({ params, searchParams }: Props) {
 
           <Details member={member} />
         </div>
+
+        {/* A member organisation's people. Absent for individuals and for
+            orgs with no recorded relations. */}
+        <Roster entries={directory.rosters[member.id] ?? []} filters={filters} />
       </main>
 
       <SiteFooter />
@@ -175,9 +199,20 @@ function Details({ member: m }: { member: Member }) {
   );
   add("Main contact phone", m.contactPhone, !!m.contactPhone && m.contactPhone !== m.phone);
 
-  add("Member since", monthYearLabel(m.memberSince), !!monthYearLabel(m.memberSince));
-  add("Membership level", m.membershipLevel, !!m.membershipLevel);
-  add("Profile status", m.status, !!m.status);
+  /*
+   * Membership facts belong to MEMBERS. A related individual's own profile row
+   * may still carry a stale level or status from the CRM, and printing it under
+   * "Membership level" would assert something about their standing with ITA
+   * that isn't true. Gated on `isMember`, not on whether the cell has a value.
+   */
+  if (m.isMember) {
+    add("Member since", monthYearLabel(m.memberSince), !!monthYearLabel(m.memberSince));
+    add("Membership level", m.membershipLevel, !!m.membershipLevel);
+    add("Profile status", m.status, !!m.status);
+  } else {
+    add("Title", m.titleAtOrg, !!m.titleAtOrg);
+    add("Organization", m.relatedOrgName, !!m.relatedOrgName);
+  }
 
   // ── Coming soon ─────────────────────────────────────────────────────────
   // The SQL view has no event columns. These light up on their own once it

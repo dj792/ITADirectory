@@ -63,6 +63,24 @@ export type Member = {
    * a quarter of the directory: a company has no "Last, First" form.
    */
   isOrganization: boolean;
+  /**
+   * TRUE for an ITA member. FALSE for someone admitted because they are
+   * CURRENTLY LINKED to a member organisation — typically an employee.
+   *
+   * The directory is members plus their people, so `Member` is now a slight
+   * misnomer for the record type; the flag is what keeps the distinction
+   * honest. A card must never present a member firm's employee as an ITA
+   * member, so every surface that shows membership reads this, not presence.
+   */
+  isMember: boolean;
+  /**
+   * For a related individual: the member organisation they're linked to, and
+   * their title there (`Title` on the relation — their role AT that org, not
+   * their own job title). Empty for members themselves.
+   */
+  relatedOrgId: string;
+  relatedOrgName: string;
+  titleAtOrg: string;
   website: string;
   city: string;
   state: string;
@@ -79,6 +97,23 @@ export type Member = {
    * rather than rebuilt per keystroke per row.
    */
   haystack: string;
+};
+
+/**
+ * One person on a member organisation's roster, resolved for display.
+ *
+ * A plain record rather than a `Member` reference because it crosses the
+ * server→client boundary and only needs what the roster shows. `title` is the
+ * person's role AT THIS ORG, from the relation — not their own job title.
+ */
+export type RosterEntry = {
+  id: string;
+  name: string;
+  title: string;
+  email: string;
+  phone: string;
+  mainContact: boolean;
+  billingContact: boolean;
 };
 
 export type Directory = {
@@ -119,6 +154,14 @@ export type Directory = {
       rowsRead: number;
       nonMembersSkipped: number;
       memberFlagColumn: string | null;
+      /** Individuals admitted via a current link to a member organisation. */
+      relatedIndividuals?: number;
     };
   };
+  /**
+   * Roster per member-organisation id: its people, with titles and contact
+   * flags. Empty when there's no relations tab, which is the members-only
+   * behaviour the app had before.
+   */
+  rosters: Record<string, RosterEntry[]>;
 };

@@ -23,9 +23,27 @@ export function directorySheetId(): string {
   return sheetIdFrom(process.env.DIRECTORY_SHEET_ID);
 }
 
-/** Blank ⇒ read the spreadsheet's first tab. */
+/**
+ * Blank ⇒ read the spreadsheet's only tab.
+ *
+ * Once companion tabs exist this must be SET: `firstTabTitle` refuses a
+ * multi-tab workbook rather than guessing, because dragging a tab left in
+ * Sheets would otherwise repoint the directory at the wrong data and the page
+ * would still render.
+ */
 export function directoryTab(): string {
   return (process.env.DIRECTORY_TAB ?? "").trim();
+}
+
+/**
+ * The tab holding `profilerelations` — the profile-to-profile links.
+ *
+ * Optional by design. Absent or unreadable ⇒ the directory is members only,
+ * exactly as before. A relations tab is an ADDITION; a problem reading it must
+ * never take down the member list, which is the thing people came for.
+ */
+export function relationsTab(): string {
+  return (process.env.DIRECTORY_RELATIONS_TAB ?? "").trim();
 }
 
 /** Human-facing link to the source sheet, or null when unconfigured. */

@@ -271,9 +271,34 @@ function MemberCard({ member: m, filters }: { member: Member; filters: Filters }
           {m.name}
         </Link>
       </h2>
-      {m.organization && <p className="mt-0.5 text-[13px] text-sub">{m.organization}</p>}
+      {/*
+        A related individual's line names their ROLE and their FIRM, because
+        that's what identifies them ("VP Sales at Ascentium Capital"). For a
+        member it's their own organisation field.
+      */}
+      {!m.isMember && (m.titleAtOrg || m.relatedOrgName) ? (
+        <p className="mt-0.5 text-[13px] leading-snug text-sub">
+          {m.titleAtOrg}
+          {m.titleAtOrg && m.relatedOrgName && " · "}
+          {m.relatedOrgName}
+        </p>
+      ) : (
+        m.organization && <p className="mt-0.5 text-[13px] text-sub">{m.organization}</p>
+      )}
 
-      {(m.membershipLevel || m.status) && (
+      {/*
+        Membership badges are for MEMBERS. Showing a firm's employee with a
+        "Technology Partner - Gold" badge would misstate their relationship to
+        ITA; they get a quiet "At a member organization" instead, so a reader
+        can tell the two apart at a glance in a result list.
+      */}
+      {!m.isMember ? (
+        <p className="mt-2">
+          <span className="inline-block rounded-sm border border-hair px-2 py-1 text-[11px] font-medium text-sub">
+            At a member organization
+          </span>
+        </p>
+      ) : (m.membershipLevel || m.status) && (
         <p className="mt-2 flex flex-wrap gap-1.5">
           {m.membershipLevel && (
             <span className="inline-block rounded-sm bg-accent/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-accentDark">

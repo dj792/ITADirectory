@@ -165,6 +165,7 @@ export type ParseBasis = {
   memberFlagColumn: string | null;
 };
 
+/** The directory set: members only. What every existing caller expects. */
 export function parseDirectory(tab: SheetTab): Member[] {
   return parseDirectoryWithBasis(tab).members;
 }
@@ -173,13 +174,33 @@ export function parseDirectoryWithBasis(tab: SheetTab): {
   members: Member[];
   basis: ParseBasis;
 } {
+  const { profiles, basis } = parseProfiles(tab);
+  return { members: profiles.filter((p) => p.isMember), basis };
+}
+
+/**
+ * EVERY row, member or not, with `isMember` set from the flag.
+ *
+ * Parsing and admission are separate steps now. They used to be one — the
+ * member filter `continue`d mid-loop — which was fine while the directory was
+ * members only. It stopped being fine once related individuals could be
+ * admitted: the relations join needs to look up a person who is NOT a member,
+ * and a parser that had already discarded them couldn't answer.
+ *
+ * Nothing is published from here. `lib/directory/admit.ts` decides who is in
+ * the directory, and it is the only thing that should.
+ */
+export function parseProfiles(tab: SheetTab): {
+  profiles: Member[];
+  basis: ParseBasis;
+} {
   const { headers, rows } = tab;
   const emptyBasis: ParseBasis = {
     rowsRead: rows.length,
     nonMembersSkipped: 0,
     memberFlagColumn: null,
   };
-  if (headers.length === 0) return { members: [], basis: emptyBasis };
+  if (headers.length === 0) return { profiles: [], basis: emptyBasis };
 
   const idx = Object.fromEntries(
     Object.entries(COLS).map(([field, candidates]) => [
@@ -189,7 +210,7 @@ export function parseDirectoryWithBasis(tab: SheetTab): {
   ) as Record<keyof typeof COLS, number>;
 
   const seen = new Set<string>();
-  const members: Member[] = [];
+  const profiles: Member[] = [];
   let nonMembersSkipped = 0;
 
   for (const row of rows) {
@@ -198,14 +219,10 @@ export function parseDirectoryWithBasis(tab: SheetTab): {
     const name = reportName || profileName;
     if (!name || isTrailerRow(name)) continue;
 
-    // Checked BEFORE the id dedupe, so a skipped non-member can't claim an id
-    // and shadow a real member who shares it.
-    if (!isMemberRow(row, idx.memberFlag)) {
-      nonMembersSkipped++;
-      continue;
-    }
+    const isMember = isMemberRow(row, idx.memberFlag);
+    if (!isMember) nonMembersSkipped++;
 
-    const id = cell(row, idx.id) || `row-${members.length + 1}`;
+    const id = cell(row, idx.id) || `row-${profiles.length + 1}`;
     // A re-export that overlaps the previous one would otherwise list someone
     // twice; ProfileID is the source system's own key, so trust it.
     if (seen.has(id)) continue;
@@ -235,17 +252,22 @@ export function parseDirectoryWithBasis(tab: SheetTab): {
       contactTitle: cell(row, idx.contactTitle),
       contactPhone: cell(row, idx.contactPhone),
       isOrganization: toBool(cell(row, idx.orgFlag)),
+      isMember,
+      // Filled by the relations join, which runs after parsing — see admit.ts.
+      relatedOrgId: "",
+      relatedOrgName: "",
+      titleAtOrg: "",
       listingLevel: cell(row, idx.listingLevel),
     };
 
-    members.push({ ...member, haystack: buildHaystack(member) });
+    profiles.push({ ...member, haystack: buildHaystack(member) });
   }
 
   // Sort by the "Last, First" form so people file under their surname.
-  members.sort((a, b) => a.sortName.localeCompare(b.sortName, "en", { sensitivity: "base" }));
+  profiles.sort((a, b) => a.sortName.localeCompare(b.sortName, "en", { sensitivity: "base" }));
 
   return {
-    members,
+    profiles,
     basis: {
       rowsRead: rows.length,
       nonMembersSkipped,

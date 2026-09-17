@@ -445,17 +445,55 @@ if (isProfileView) {
   check("names came from Profile_ReportName", filled((m) => m.name) === members.length);
   check("every member has a sortName", members.every((m) => m.sortName.length > 0));
   /*
-   * The "Last, First" form belongs to PEOPLE. An earlier version of this check
-   * asserted that a third of all sortNames contain a comma and failed at 53/202
-   * — not a parsing bug, but the Org/Individual split: three quarters of ITA's
-   * members are companies, and a company has no surname. Assert the thing that
-   * is actually true.
+   * The "Last, First" form belongs to PEOPLE — but a COMMA does not mean a
+   * person. An earlier version asserted a third of all sortNames contain one
+   * and failed at 53/202; the fix then mis-explained why. Both readings were
+   * wrong: there are only 7 individuals, and most of those 53 commas are
+   * company names ("LDH Consulting, Inc.", "Frank, Rimerman + Co. LLP").
+   * `Profile_OrgInd` is the only thing that answers org-vs-person.
    */
   const individuals = members.filter((m) => !m.isOrganization);
-  check("individuals sort by surname, organisations by name",
-    individuals.length > 0 &&
-    individuals.filter((m) => m.sortName.includes(",")).length > individuals.length * 0.8,
-    `${individuals.filter((m) => m.sortName.includes(",")).length} of ${individuals.length} individuals`);
+  check("individuals carry the 'Last, First' sort form",
+    individuals.length > 0 && individuals.every((m) => m.sortName.includes(",")),
+    `${individuals.filter((m) => m.sortName.includes(",")).length} of ${individuals.length}`);
+  check("a comma in sortName does NOT imply an individual",
+    members.filter((m) => m.sortName.includes(",")).length > individuals.length,
+    `${members.filter((m) => m.sortName.includes(",")).length} commas vs ${individuals.length} individuals`);
+  /*
+   * `Profile_ReportName` is the search field for BOTH organisations and
+   * individuals — for a person it holds the full "First Last". Nothing else is
+   * needed: `Profile_FirstName`/`LastName` are populated on only the 7
+   * individual records, so indexing them would add nothing and invite someone
+   * to "fix" search by reaching for them.
+   *
+   * Asserted on every individual in the export, by first name, last name and
+   * full name, because this is the behaviour a member notices first.
+   */
+  const people = members.filter((m) => !m.isOrganization);
+  const finds = (q: string, id: string) =>
+    applyFilters(members, { ...EMPTY_FILTERS, q }).some((m) => m.id === id);
+  const nameParts = (n: string) =>
+    n.split(/\s+/).filter((p) => p.length > 2 && !p.endsWith("."));
+
+  check("individuals are findable by FIRST name",
+    people.every((m) => finds(nameParts(m.name)[0] ?? m.name, m.id)),
+    people.filter((m) => !finds(nameParts(m.name)[0] ?? m.name, m.id))
+      .map((m) => m.name).join(" · "));
+  check("individuals are findable by LAST name",
+    people.every((m) => {
+      const p = nameParts(m.name);
+      return finds(p[p.length - 1] ?? m.name, m.id);
+    }));
+  check("individuals are findable by FULL name",
+    people.every((m) => finds(m.name, m.id)));
+  check("and by surname-first, since sortName is indexed too",
+    people.every((m) => {
+      const p = nameParts(m.name);
+      return p.length < 2 || finds(`${p[p.length - 1]} ${p[0]}`, m.id);
+    }));
+  check("organisations are findable by their name",
+    members.filter((m) => m.isOrganization).every((m) => finds(m.name, m.id)));
+
   check("email prefers the main contact, not the org alias",
     filled((m) => m.email) > members.length * 0.9, `${filled((m) => m.email)}/${members.length}`);
   check("Member_MemberSince populated memberSince",
