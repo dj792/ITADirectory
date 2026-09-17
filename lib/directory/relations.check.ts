@@ -170,6 +170,38 @@ check("a former employee of a member is not admitted through that link", (() => 
     related.every((m) => m.haystack.length > 0));
 }
 
+// ── ITA's own record (2456) is always a member ────────────────────────────
+{
+  const ita = result.members.find((m) => m.id === "2456");
+  check("ITA's own record (2456) is in the directory", !!ita,
+    "Profile_Member is False on it, so this depends on the override");
+  check("…and is treated as a MEMBER", ita?.isMember === true);
+  check("…and is the association itself", ita?.name.includes("Information Technology Alliance"),
+    ita?.name);
+
+  const itaRoster = result.rosters.get("2456") ?? [];
+  check("ITA's staff are admitted through it", itaRoster.length >= 5,
+    `${itaRoster.length} people`);
+  const staffIds = new Set(itaRoster.map((l) => l.personId));
+  check("each of them is in the directory",
+    [...staffIds].every((id) => admittedIds.has(id)));
+  check("they are related to 2456, not flagged members",
+    [...staffIds].every((id) => {
+      const p = result.members.find((m) => m.id === id);
+      return p && !p.isMember && p.relatedOrgId === "2456";
+    }));
+
+  // 2453 (JoAnn Benzer) is a FORMER employee of ITA and holds no other current
+  // link — the concrete case for "former employees are always excluded".
+  check("a former ITA employee (2453) is NOT admitted", !admittedIds.has("2453"),
+    result.members.find((m) => m.id === "2453")?.name ?? "");
+  check("…and is not on ITA's roster", !staffIds.has("2453"));
+}
+
+// ── Former is never current, even if the allow-list is edited ─────────────
+check("nothing beginning 'Former' is ever current",
+  relations.every((r) => !/^\s*former/i.test(r.relationType) || !r.current));
+
 console.log(failures === 0
   ? "\nAll relation checks passed.\n"
   : `\n${failures} check(s) FAILED.\n`);

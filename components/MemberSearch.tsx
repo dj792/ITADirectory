@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import FilterSelect from "@/components/FilterSelect";
 import SegmentedControl from "@/components/SegmentedControl";
+import DownloadResults from "@/components/DownloadResults";
 import { filtersFromParams, filtersToQueryString, memberHref } from "@/lib/directory/url";
 import {
   applyFilters,
@@ -67,6 +68,19 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
     }
   }, [queryString]);
 
+  // Written into the downloaded file, so someone opening it later can tell what
+  // the list actually is rather than guessing from the rows.
+  const searchSummary = [
+    filters.q && `search: ${filters.q}`,
+    filters.membershipLevel && `level: ${filters.membershipLevel}`,
+    filters.status && `status: ${filters.status}`,
+    filters.lastEvent && `event: ${filters.lastEvent}`,
+    filters.kind === "org" && "organizations only",
+    filters.kind === "individual" && "individuals only",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
   const isFiltered =
     !!filters.q ||
@@ -89,12 +103,12 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
       options: directory.facets.membershipLevel,
       onChange: (v: string) => set({ membershipLevel: v }),
     },
-    {
-      label: "Profile status",
-      value: filters.status,
-      options: directory.facets.status,
-      onChange: (v: string) => set({ status: v }),
-    },
+    // Profile status is no longer offered as a filter — its values largely
+    // restate Membership Level ("Technology Partner" vs "Technology Partner -
+    // Gold"), so two dropdowns asked nearly the same question. The field is
+    // still parsed and still shown on a member's card and page; only the filter
+    // is gone. `?status=` in a URL is still honoured, and restoring the control
+    // is one entry in this array.
     {
       label: "Last event signed up for",
       value: filters.lastEvent,
@@ -176,15 +190,21 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
                 ? `${directory.members.length} members`
                 : `${results.length} of ${directory.members.length} members`}
           </span>
-          {isFiltered && (
-            <button
-              type="button"
-              onClick={() => setFilters(EMPTY_FILTERS)}
-              className="rounded-lg px-2 py-1 font-medium text-accent hover:bg-panel2"
-            >
-              Clear
-            </button>
-          )}
+          <div className="flex items-center gap-1">
+            {/* Only offered once there are results — see DownloadResults. */}
+            {active && (
+              <DownloadResults results={results} searchSummary={searchSummary} />
+            )}
+            {isFiltered && (
+              <button
+                type="button"
+                onClick={() => setFilters(EMPTY_FILTERS)}
+                className="rounded-lg px-2 py-1 font-medium text-accent hover:bg-panel2"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

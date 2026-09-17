@@ -145,7 +145,23 @@ function isTrailerRow(name: string): boolean {
  * working. A row whose flag is present but blank is NOT a member — an unset
  * flag in a full database dump is a contact nobody has marked, not a member.
  */
-function isMemberRow(row: string[], flagIdx: number): boolean {
+/**
+ * Profiles ALWAYS treated as members, whatever `Profile_Member` says.
+ *
+ * `2456` is the Information Technology Alliance's own record. ITA is not a
+ * member of itself, so the CRM has it flagged False — but it must always appear
+ * in its own directory, and its staff must be reachable through it. Overriding
+ * here rather than in the UI means the whole app follows: the roster works, its
+ * people are admitted, and nothing has to special-case an id.
+ *
+ * A SET, not a constant, so an affiliate or chapter can be added in one place.
+ * Editing the sheet would be preferable, but `Profile_Member` is the CRM's field
+ * and this app doesn't write to it.
+ */
+export const ALWAYS_MEMBER_IDS = new Set(["2456"]);
+
+function isMemberRow(row: string[], flagIdx: number, id: string): boolean {
+  if (ALWAYS_MEMBER_IDS.has(id)) return true;
   if (flagIdx < 0) return true;
   return toBool(cell(row, flagIdx));
 }
@@ -219,10 +235,11 @@ export function parseProfiles(tab: SheetTab): {
     const name = reportName || profileName;
     if (!name || isTrailerRow(name)) continue;
 
-    const isMember = isMemberRow(row, idx.memberFlag);
-    if (!isMember) nonMembersSkipped++;
-
+    // The id is read FIRST because the always-member override is keyed on it.
     const id = cell(row, idx.id) || `row-${profiles.length + 1}`;
+
+    const isMember = isMemberRow(row, idx.memberFlag, id);
+    if (!isMember) nonMembersSkipped++;
     // A re-export that overlaps the previous one would otherwise list someone
     // twice; ProfileID is the source system's own key, so trust it.
     if (seen.has(id)) continue;

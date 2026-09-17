@@ -11,7 +11,13 @@
  */
 import fs from "fs";
 import path from "path";
-import { parseDirectory, parseDirectoryWithBasis, facetsOf, byEventRecency } from "./parse";
+import {
+  parseDirectory,
+  parseDirectoryWithBasis,
+  facetsOf,
+  byEventRecency,
+  ALWAYS_MEMBER_IDS,
+} from "./parse";
 import {
   applyFilters,
   hasActiveSearch,
@@ -24,6 +30,7 @@ import { parseCsv } from "./csv";
 import { monthYearLabel, parseYearMonth } from "./date";
 import { filtersFromParams, filtersToQueryString, memberHref, searchHref } from "./url";
 import { eventFilterPending, isPending } from "./pending";
+import { csvField, resultsToCsv, EXPORT_DISCLAIMER } from "./export";
 
 /**
  * Fixtures, primary first. The assertions below run against whichever is
@@ -197,8 +204,22 @@ check("a dropdown alone is a complete search",
  * field the app has. Complete coverage is what makes it usable as a filter, so
  * assert that rather than assuming it.
  */
-check("every member has a Profile Status", members.every((m) => m.status.length > 0),
-  `${members.filter((m) => !m.status).length} without one`);
+/*
+ * Every member has a Profile Status — EXCEPT the always-member overrides.
+ * ITA's own record (2456) carries no `Profile_CustStatus`, which is right: the
+ * association isn't a customer of itself. It's in the directory by policy, not
+ * by the CRM's member lifecycle, so the field that describes that lifecycle is
+ * legitimately empty. Exempting it by ID keeps the assertion strict for the 202
+ * records where it genuinely means something.
+ */
+{
+  const missing = members.filter((m) => !m.status && !ALWAYS_MEMBER_IDS.has(m.id));
+  check("every member has a Profile Status (bar the always-member overrides)",
+    missing.length === 0,
+    missing.slice(0, 3).map((m) => `${m.id} ${m.name}`).join(" · "));
+  check("the always-member override is what exempts it",
+    members.filter((m) => !m.status).every((m) => ALWAYS_MEMBER_IDS.has(m.id)));
+}
 check("status facet covers the whole membership", facets.status.length >= 6,
   facets.status.join(" · "));
 {
@@ -384,6 +405,43 @@ function countBlankPrimaryCategory(csv: string): number {
   // above), so this is the lookup the page actually performs.
   check("every member is reachable by its own id",
     members.every((m) => members.filter((x) => x.id === m.id).length === 1));
+}
+
+/* ── The CSV export ──────────────────────────────────────────────────────── */
+{
+  check("the disclaimer is the FIRST line of the file",
+    resultsToCsv(members.slice(0, 2), "").split("\r\n")[0].includes(EXPORT_DISCLAIMER),
+    "it must travel with the file, not just appear in the dialog");
+
+  const csv = resultsToCsv(members.slice(0, 5), "search: test");
+  const lines = csv.split("\r\n");
+  check("the file records what the list is", lines[1].includes("search: test"));
+  check("one row per result plus disclaimer, summary, blank and header",
+    lines.length === 5 + 4, `${lines.length} lines`);
+  check("the header row names the columns",
+    lines[3].startsWith("Name,Type,Organization,Title"), lines[3].slice(0, 40));
+
+  // Commas are REAL in this data — "Frank, Rimerman + Co. LLP".
+  check("a value containing a comma is quoted",
+    csvField("Frank, Rimerman + Co. LLP") === '"Frank, Rimerman + Co. LLP"',
+    csvField("Frank, Rimerman + Co. LLP"));
+  check("embedded quotes are doubled",
+    csvField('He said "hi"') === '"He said ""hi"""', csvField('He said "hi"'));
+  check("newlines are quoted, not left to break the row",
+    csvField("a\nb") === '"a\nb"');
+
+  /*
+   * FORMULA INJECTION. A CRM field is free text; a title starting "=" is
+   * executed by Excel and Sheets when the export is opened. This is the one
+   * assertion here that's about safety rather than formatting.
+   */
+  for (const bad of ["=1+1", "+1", "-1", "@SUM(A1)"]) {
+    check(`a value starting "${bad[0]}" is neutralised`,
+      csvField(bad).startsWith("'"), csvField(bad));
+  }
+  check("every row of the real export is free of live formulas",
+    resultsToCsv(members, "").split("\r\n").slice(3)
+      .every((l) => !/^[=+@]/.test(l) && !/,[=+@]/.test(l)));
 }
 
 /* ── Organisations / Individuals / Both ──────────────────────────────────── */
