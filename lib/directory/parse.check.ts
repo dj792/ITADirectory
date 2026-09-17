@@ -159,13 +159,13 @@ if (grid.headers.includes("Primary Category")) {
 // --- The dropdowns AND with each other and with the text box ----------------
 const techPartners = applyFilters(members, { ...EMPTY_FILTERS, status: "Technology Partner" });
 const level = "Technology Partner - Gold";
-const byLevel = applyFilters(members, { ...EMPTY_FILTERS, membershipLevel: level });
+const byLevel = applyFilters(members, { ...EMPTY_FILTERS, membershipLevels: [level] });
 check("level filter narrows the list",
   byLevel.length > 0 && byLevel.length < members.length, `${level}: ${byLevel.length}`);
 
 const combined = applyFilters(members, {
   ...EMPTY_FILTERS,
-  membershipLevel: level,
+  membershipLevels: [level],
   status: "Technology Partner",
 });
 check("level AND status narrows further, never wider",
@@ -194,7 +194,7 @@ check(`${MIN_QUERY_LENGTH} characters IS enough`,
 check("whitespace doesn't count toward the minimum",
   !hasActiveSearch({ ...EMPTY_FILTERS, q: "  a  " }));
 check("a dropdown alone is a complete search",
-  hasActiveSearch({ ...EMPTY_FILTERS, membershipLevel: "Technology Partner - Gold" }) &&
+  hasActiveSearch({ ...EMPTY_FILTERS, membershipLevels: ["Technology Partner - Gold"] }) &&
   hasActiveSearch({ ...EMPTY_FILTERS, status: "Technology Partner" }) &&
   hasActiveSearch({ ...EMPTY_FILTERS, lastEvent: "ITA Spring 2026 Collaborative" }));
 
@@ -351,7 +351,7 @@ function countBlankPrimaryCategory(csv: string): number {
   // what `filtersFromParams` builds, so this must list fields in the same order.
   const full: Filters = {
     q: "martus",
-    membershipLevel: "Technology Partner - Gold",
+    membershipLevels: ["Technology Partner - Gold"],
     status: "Technology Partner",
     lastEvent: "ITA Spring 2026 Collaborative",
     kind: "",
@@ -378,7 +378,7 @@ function countBlankPrimaryCategory(csv: string): number {
   // both reach this code, so both must work.
   check("plain-object params work too (Next server pages)",
     filtersFromParams({ q: "smith", level: "Emeritus" }).q === "smith" &&
-    filtersFromParams({ q: "smith", level: "Emeritus" }).membershipLevel === "Emeritus");
+    filtersFromParams({ q: "smith", level: "Emeritus" }).membershipLevels[0] === "Emeritus");
   check("a repeated param takes the first, never joins",
     filtersFromParams({ q: ["a", "b"] }).q === "a",
     filtersFromParams({ q: ["a", "b"] }).q);
@@ -405,6 +405,71 @@ function countBlankPrimaryCategory(csv: string): number {
   // above), so this is the lookup the page actually performs.
   check("every member is reachable by its own id",
     members.every((m) => members.filter((x) => x.id === m.id).length === 1));
+}
+
+/* ── Membership level is MULTI-SELECT ────────────────────────────────────── */
+{
+  const gold = "Technology Partner - Gold";
+  const silver = "Technology Partner - Silver";
+  const one = applyFilters(members, { ...EMPTY_FILTERS, membershipLevels: [gold] });
+  const two = applyFilters(members, { ...EMPTY_FILTERS, membershipLevels: [gold, silver] });
+  const other = applyFilters(members, { ...EMPTY_FILTERS, membershipLevels: [silver] });
+
+  /*
+   * OR within the field. A member holds exactly ONE level, so AND-ing two would
+   * always return nothing — the mistake that makes a multi-select look broken.
+   */
+  check("two levels return the UNION, not the intersection",
+    two.length === one.length + other.length && two.length > one.length,
+    `${one.length} + ${other.length} = ${two.length}`);
+  check("every result holds one of the chosen levels",
+    two.every((m) => m.membershipLevel === gold || m.membershipLevel === silver));
+  check("an empty selection filters nothing",
+    applyFilters(members, { ...EMPTY_FILTERS, membershipLevels: [] }).length ===
+      members.length);
+  check("order of selection doesn't change the result",
+    applyFilters(members, { ...EMPTY_FILTERS, membershipLevels: [silver, gold] }).length ===
+      two.length);
+  check("one selected level still activates the search",
+    hasActiveSearch({ ...EMPTY_FILTERS, membershipLevels: [gold] }));
+
+  // Still ANDs across fields.
+  const narrowed = applyFilters(members, {
+    ...EMPTY_FILTERS,
+    membershipLevels: [gold, silver],
+    kind: "org",
+  });
+  check("levels OR each other but AND the other filters",
+    narrowed.length <= two.length && narrowed.every((m) => m.isOrganization));
+
+  /*
+   * REPEATED params, not a comma-separated list: `?level=A&level=B`. Levels are
+   * free text from the CRM, so a delimiter that can occur inside a value is a
+   * parser waiting to break. Sorted on the way out so the same two choices
+   * always produce the same URL and two people can compare links.
+   */
+  check("several levels become several params",
+    filtersToQueryString({ ...EMPTY_FILTERS, membershipLevels: [gold, silver] }) ===
+      `level=${encodeURIComponent(gold).replace(/%20/g, "+")}` +
+      `&level=${encodeURIComponent(silver).replace(/%20/g, "+")}`,
+    filtersToQueryString({ ...EMPTY_FILTERS, membershipLevels: [gold, silver] }));
+  check("the URL is stable regardless of pick order",
+    filtersToQueryString({ ...EMPTY_FILTERS, membershipLevels: [silver, gold] }) ===
+      filtersToQueryString({ ...EMPTY_FILTERS, membershipLevels: [gold, silver] }));
+  check("repeated params round-trip back to a list",
+    JSON.stringify(
+      filtersFromParams(
+        new URLSearchParams(
+          filtersToQueryString({ ...EMPTY_FILTERS, membershipLevels: [gold, silver] })
+        )
+      ).membershipLevels
+    ) === JSON.stringify([gold, silver].sort()));
+  check("a duplicated level in a hand-edited URL counts once",
+    filtersFromParams({ level: [gold, gold, silver] }).membershipLevels.length === 2);
+  check("blank level params are dropped",
+    filtersFromParams({ level: ["", gold] }).membershipLevels.length === 1);
+  check("no level leaves the URL clean",
+    filtersToQueryString({ ...EMPTY_FILTERS, membershipLevels: [] }) === "");
 }
 
 /* ── The CSV export ──────────────────────────────────────────────────────── */

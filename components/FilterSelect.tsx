@@ -27,16 +27,30 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
  */
 export default function FilterSelect({
   label,
-  value,
+  values,
   options,
   onChange,
+  multiple = false,
   pending,
 }: {
   /** Shown when nothing is chosen, e.g. "Membership level" → "Membership level: all". */
   label: string;
-  value: string;
+  /**
+   * Always an ARRAY, single-select included (empty, or one entry).
+   *
+   * One shape for both modes keeps the keyboard handling, the ARIA wiring and
+   * the type-ahead in ONE component. Two components would mean maintaining that
+   * contract twice, and the second copy is where the accessibility quietly rots.
+   */
+  values: string[];
   options: string[];
-  onChange: (v: string) => void;
+  onChange: (values: string[]) => void;
+  /**
+   * Multi mode: options toggle, the menu STAYS OPEN, and the rows are
+   * checkboxes. Picking three levels one at a time shouldn't mean opening the
+   * menu three times.
+   */
+  multiple?: boolean;
   /**
    * The source doesn't carry this field yet. Renders a disabled control saying
    * so instead of the caller hiding the filter — a control that vanishes reads
@@ -66,9 +80,11 @@ export default function FilterSelect({
     ...options.map((o) => ({ value: o, label: o })),
   ];
 
+  const selected = new Set(values);
+  // Open on the FIRST selection, or the "all" row when nothing is chosen.
   const selectedIndex = Math.max(
     0,
-    items.findIndex((i) => i.value === value)
+    items.findIndex((i) => i.value && selected.has(i.value))
   );
 
   const close = useCallback((refocus = true) => {
@@ -84,14 +100,33 @@ export default function FilterSelect({
   const choose = useCallback(
     (index: number) => {
       const item = items[index];
-      if (item) onChange(item.value);
-      close();
+      if (!item) return;
+
+      // The "all" row always means CLEAR, in both modes — it's the reset, not a
+      // value to toggle alongside the others.
+      if (!item.value) {
+        onChange([]);
+        close();
+        return;
+      }
+
+      if (!multiple) {
+        onChange([item.value]);
+        close();
+        return;
+      }
+
+      // Multi: toggle, and stay open so several can be picked in one visit.
+      const next = new Set(values);
+      if (next.has(item.value)) next.delete(item.value);
+      else next.add(item.value);
+      onChange([...next]);
     },
     // `items` is rebuilt each render; depending on its identity would reset this
     // every keystroke elsewhere on the page. The values it closes over come from
     // props, which the other deps already track.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [onChange, close, options, value, label]
+    [onChange, close, options, values, label, multiple]
   );
 
   // Close when the pointer goes anywhere else. `mousedown` rather than `click`
@@ -157,9 +192,17 @@ export default function FilterSelect({
         close();
         break;
       case "Tab":
-        // Tab commits — matching a native select, and avoiding a menu left
-        // hanging open over the page after focus has moved on.
-        choose(activeIndex);
+        /*
+         * Single mode: Tab COMMITS the highlighted option, matching a native
+         * select, and avoids leaving a menu open over the page after focus has
+         * moved on.
+         *
+         * Multi mode: Tab only CLOSES. Committing would toggle whatever happened
+         * to be highlighted as the user tabbed away — silently adding or
+         * removing a level they never chose.
+         */
+        if (multiple) close(false);
+        else choose(activeIndex);
         break;
       default:
         if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
@@ -181,7 +224,19 @@ export default function FilterSelect({
     if (found >= 0) setActiveIndex(found);
   }
 
-  const isPlaceholder = value === "";
+  /*
+   * The trigger's text. With several chosen it says "2 selected" rather than
+   * running the names together — a 300px control can't show "Technology Partner
+   * - Gold, Technology Partner - Silver" without truncating both into
+   * uselessness, and the count is what the reader actually needs at a glance.
+   * The full list is one click away, ticked.
+   */
+  const isPlaceholder = values.length === 0;
+  const triggerText = isPlaceholder
+    ? `${label}: all`
+    : values.length === 1
+      ? values[0]
+      : `${label}: ${values.length} selected`;
 
   /*
    * Pending: the control keeps its place in the grid so the row of filters
@@ -225,7 +280,7 @@ export default function FilterSelect({
         // reader announces "Membership level, button" and the user has no idea
         // what it's set to; with only the value they don't know which filter
         // they're on. A native select gives both — so this has to as well.
-        aria-label={`${label}: ${value || "all"}`}
+        aria-label={`${label}: ${values.length ? values.join(", ") : "all"}`}
         className={[
           "flex w-full items-center justify-between gap-2 rounded-lg border bg-white px-3 py-2.5 text-left text-[14px]",
           "shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition",
@@ -234,7 +289,7 @@ export default function FilterSelect({
         ].join(" ")}
       >
         <span className={`truncate ${isPlaceholder ? "text-sub" : "text-fg"}`}>
-          {isPlaceholder ? `${label}: all` : value}
+          {triggerText}
         </span>
         <ChevronUpDown />
       </button>
@@ -246,6 +301,7 @@ export default function FilterSelect({
           role="listbox"
           tabIndex={-1}
           aria-label={label}
+          aria-multiselectable={multiple || undefined}
           aria-activedescendant={`${baseId}-opt-${activeIndex}`}
           onKeyDown={onListKeyDown}
           className={[
@@ -254,7 +310,10 @@ export default function FilterSelect({
           ].join(" ")}
         >
           {items.map((item, i) => {
-            const isSelected = item.value === value;
+            // The "all" row reads as selected only when nothing else is.
+            const isSelected = item.value
+              ? selected.has(item.value)
+              : values.length === 0;
             const isActive = i === activeIndex;
             return (
               <li
@@ -273,8 +332,19 @@ export default function FilterSelect({
                   item.value === "" && !isActive ? "text-sub" : "",
                 ].join(" ")}
               >
+                {/*
+                  A checkbox in multi mode, a checkmark in single. The shape of
+                  the control should tell you whether picking one replaces your
+                  choice or adds to it, before you click and find out.
+                */}
                 <span className="w-4 shrink-0">
-                  {isSelected && <Check className={isActive ? "text-white" : "text-accent"} />}
+                  {multiple && item.value ? (
+                    <CheckBox checked={isSelected} active={isActive} />
+                  ) : (
+                    isSelected && (
+                      <Check className={isActive ? "text-white" : "text-accent"} />
+                    )
+                  )}
                 </span>
                 <span className="truncate">{item.label}</span>
               </li>
@@ -303,6 +373,39 @@ function ChevronUpDown() {
         strokeLinejoin="round"
       />
     </svg>
+  );
+}
+
+/** A drawn checkbox — a real input can't sit inside a `role="option"`. */
+function CheckBox({ checked, active }: { checked: boolean; active: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={[
+        "flex h-4 w-4 items-center justify-center rounded-[3px] border",
+        checked
+          ? active
+            ? "border-white bg-white/25"
+            : "border-accent bg-accent"
+          : active
+            ? "border-white/70"
+            : "border-hair bg-white",
+      ].join(" ")}
+    >
+      {checked && (
+        // Drawn inline rather than reusing <Check/>: that one is h-4 w-4, which
+        // is the size of this whole box.
+        <svg viewBox="0 0 16 16" fill="none" className="h-3 w-3 text-white">
+          <path
+            d="m3.5 8.5 3 3 6-7"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
+    </span>
   );
 }
 

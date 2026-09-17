@@ -31,7 +31,16 @@ export type ProfileKind = "" | "org" | "individual";
 export type Filters = {
   /** Free text, matched against name / organization / email only. */
   q: string;
-  membershipLevel: string;
+  /**
+   * Membership levels, MULTI-SELECT. Empty = no restriction.
+   *
+   * Within this field the values are OR-ed — "Gold or Platinum" — because
+   * choosing two levels can only mean "either of these"; AND-ing them would
+   * always return nothing, since a member holds exactly one level. Across
+   * fields everything still ANDs. That is the standard faceted-search rule, and
+   * getting it backwards produces a filter that silently empties the page.
+   */
+  membershipLevels: string[];
   status: string;
   lastEvent: string;
   /** "" = both (default) · "org" · "individual" */
@@ -40,7 +49,7 @@ export type Filters = {
 
 export const EMPTY_FILTERS: Filters = {
   q: "",
-  membershipLevel: "",
+  membershipLevels: [],
   status: "",
   lastEvent: "",
   kind: "",
@@ -90,7 +99,7 @@ export const MIN_QUERY_LENGTH = 3;
 export function hasActiveSearch(f: Filters): boolean {
   return (
     f.q.trim().length >= MIN_QUERY_LENGTH ||
-    !!f.membershipLevel ||
+    f.membershipLevels.length > 0 ||
     !!f.status ||
     !!f.lastEvent
   );
@@ -108,7 +117,9 @@ export function hasActiveSearch(f: Filters): boolean {
 export function applyFilters(members: Member[], f: Filters): Member[] {
   return members.filter(
     (m) =>
-      (!f.membershipLevel || m.membershipLevel === f.membershipLevel) &&
+      // OR within the field, AND across fields — see `Filters.membershipLevels`.
+      (f.membershipLevels.length === 0 ||
+        f.membershipLevels.includes(m.membershipLevel)) &&
       (!f.status || m.status === f.status) &&
       (!f.lastEvent || m.lastEvent === f.lastEvent) &&
       (!f.kind || (f.kind === "org") === m.isOrganization) &&

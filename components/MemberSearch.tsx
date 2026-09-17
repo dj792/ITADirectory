@@ -72,7 +72,8 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
   // the list actually is rather than guessing from the rows.
   const searchSummary = [
     filters.q && `search: ${filters.q}`,
-    filters.membershipLevel && `level: ${filters.membershipLevel}`,
+    filters.membershipLevels.length > 0 &&
+      `level: ${filters.membershipLevels.join(", ")}`,
     filters.status && `status: ${filters.status}`,
     filters.lastEvent && `event: ${filters.lastEvent}`,
     filters.kind === "org" && "organizations only",
@@ -84,7 +85,7 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
   const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
   const isFiltered =
     !!filters.q ||
-    !!filters.membershipLevel ||
+    filters.membershipLevels.length > 0 ||
     !!filters.status ||
     !!filters.lastEvent ||
     !!filters.kind;
@@ -96,12 +97,19 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
    * now: the SQL view that replaced the report export has no event columns.
    */
   const eventsPending = eventFilterPending(directory);
+  /*
+   * Every entry deals in `string[]`, single-valued filters included — one shape
+   * so FilterSelect needs no second code path. The single-valued ones adapt at
+   * the boundary (`vs[0] ?? ""`), which keeps `Filters` honest: a status is one
+   * value by nature, a set of levels is not.
+   */
   const dropdowns = [
     {
       label: "Membership level",
-      value: filters.membershipLevel,
+      values: filters.membershipLevels,
       options: directory.facets.membershipLevel,
-      onChange: (v: string) => set({ membershipLevel: v }),
+      multiple: true,
+      onChange: (vs: string[]) => set({ membershipLevels: vs }),
     },
     // Profile status is no longer offered as a filter — its values largely
     // restate Membership Level ("Technology Partner" vs "Technology Partner -
@@ -111,9 +119,9 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
     // is one entry in this array.
     {
       label: "Last event signed up for",
-      value: filters.lastEvent,
+      values: filters.lastEvent ? [filters.lastEvent] : [],
       options: directory.facets.lastEvent,
-      onChange: (v: string) => set({ lastEvent: v }),
+      onChange: (vs: string[]) => set({ lastEvent: vs[0] ?? "" }),
       pending: eventsPending ? PENDING_NOTE.events : undefined,
     },
   ].filter((d) => d.options.length > 0 || !!d.pending);
@@ -170,9 +178,10 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
               <FilterSelect
                 key={d.label}
                 label={d.label}
-                value={d.value}
+                values={d.values}
                 options={d.options}
                 onChange={d.onChange}
+                multiple={d.multiple}
                 pending={d.pending}
               />
             ))}
