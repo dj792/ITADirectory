@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import BrandMark from "@/components/BrandMark";
-import SiteFooter from "@/components/SiteFooter";
 import { loadFormConfig, type LoadedFormConfig } from "@/lib/forms/service";
 import { formFor, visibleTo } from "@/lib/forms/parse";
 import type { FormField, Visibility } from "@/lib/forms/types";
+import {
+  DATA_TYPE_LABELS,
+  SEARCH_MODE_LABELS,
+  VISIBILITY_LABELS,
+  type Explained,
+} from "@/lib/forms/labels";
 
 /**
  * FORM PREVIEW — "show me the CR form as a member sees it."
@@ -77,16 +81,10 @@ export default async function FormPreviewPage({
     else groups.push({ name, fields: [f] });
   }
 
+  // Header, nav and footer come from `app/admin/layout.tsx` — this page is
+  // only its own content now that it sits inside the gated admin area.
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="border-b border-hair bg-panel">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-          <BrandMark height={40} />
-          <span className="text-[12px] text-sub">Form preview</span>
-        </div>
-      </header>
-
-      <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
+    <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
         <h1 className="text-2xl">Custom field forms</h1>
         <p className="mt-1 text-[14px] text-sub">
           Read-only preview of the four configuration tabs. Nothing here saves.
@@ -107,6 +105,8 @@ export default async function FormPreviewPage({
               audience={audience}
               config={config}
             />
+
+            <Legend />
 
             <p className="mt-5 text-[13px] text-sub">
               {shown.length} field{shown.length === 1 ? "" : "s"} shown
@@ -129,10 +129,7 @@ export default async function FormPreviewPage({
             </div>
           </>
         )}
-      </main>
-
-      <SiteFooter note="Form preview — configuration only. No member data is read or shown on this page." />
-    </div>
+    </main>
   );
 }
 
@@ -294,17 +291,36 @@ function Pill({
 function Field({ field: f }: { field: FormField }) {
   return (
     <div>
+      {/*
+        Badges read in the CUSTOMER'S words, not the config's — `lib/forms/labels`.
+        `title` carries the one-line definition, and the legend above the form
+        spells them all out, because ITA reviews this page and "facet" is our
+        jargon rather than theirs.
+      */}
       <div className="flex flex-wrap items-baseline gap-2">
         <label className="text-[14px] font-medium text-strong">
           {f.label}
           {f.required && <span className="ml-1 text-accent">*</span>}
         </label>
-        <Badge tone={f.visibility === "staff" ? "warn" : "quiet"}>{f.visibility}</Badge>
-        {f.searchMode !== "none" && <Badge tone="accent">{f.searchMode}</Badge>}
-        <Badge tone="quiet">{f.dataType}</Badge>
+        <Badge
+          tone={f.visibility === "staff" ? "warn" : "quiet"}
+          title={VISIBILITY_LABELS[f.visibility].description}
+        >
+          {VISIBILITY_LABELS[f.visibility].label}
+        </Badge>
+        {f.searchMode !== "none" && (
+          <Badge tone="accent" title={SEARCH_MODE_LABELS[f.searchMode].description}>
+            {SEARCH_MODE_LABELS[f.searchMode].label}
+          </Badge>
+        )}
+        <Badge tone="quiet" title={DATA_TYPE_LABELS[f.dataType].description}>
+          {f.dataType === "repeat"
+            ? `Up to ${f.maxRepeat} entries`
+            : DATA_TYPE_LABELS[f.dataType].label}
+        </Badge>
         {f.showIfField && (
           <Badge tone="quiet">
-            if {f.showIfField} = {f.showIfValue || "any"}
+            Only if “{f.showIfField}” is {f.showIfValue || "answered"}
           </Badge>
         )}
       </div>
@@ -374,9 +390,11 @@ function Control({ field: f }: { field: FormField }) {
 
 function Badge({
   tone,
+  title,
   children,
 }: {
   tone: "quiet" | "accent" | "warn";
+  title?: string;
   children: React.ReactNode;
 }) {
   const cls =
@@ -386,8 +404,57 @@ function Badge({
         ? "bg-amber-100 text-amber-900"
         : "border border-hair text-sub";
   return (
-    <span className={`rounded-sm px-1.5 py-0.5 text-[11px] font-medium ${cls}`}>
+    <span
+      title={title}
+      className={`rounded-sm px-1.5 py-0.5 text-[11px] font-medium ${cls}`}
+    >
       {children}
     </span>
+  );
+}
+
+/**
+ * What the badges mean, spelled out.
+ *
+ * Collapsed by default: it answers a question the reader has exactly once, and
+ * an explanation permanently occupying the top of the page competes with the
+ * forms it exists to explain. `<details>` rather than a tooltip because a
+ * printed or shared screenshot should be able to carry the definitions, and
+ * because the `title` attributes on the badges don't exist on a touchscreen.
+ */
+function Legend() {
+  const rows: [string, Explained][] = [
+    ...Object.entries(VISIBILITY_LABELS).map(
+      ([, v]) => ["Who sees it", v] as [string, Explained]
+    ),
+    ...Object.entries(SEARCH_MODE_LABELS)
+      .filter(([k]) => k !== "none")
+      .map(([, v]) => ["Searching", v] as [string, Explained]),
+  ];
+  return (
+    <details className="mt-4 rounded-lg border border-hair bg-panel px-4 py-3">
+      <summary className="cursor-pointer text-[13px] font-medium text-accent">
+        What do the labels next to each field mean?
+      </summary>
+      <dl className="mt-3 space-y-2 text-[13px]">
+        {rows.map(([group, r]) => (
+          <div key={r.label} className="sm:flex sm:gap-3">
+            <dt className="shrink-0 font-semibold text-strong sm:w-[150px]">
+              {r.label}
+              <span className="ml-1 font-normal text-sub sm:hidden">({group})</span>
+            </dt>
+            <dd className="text-sub">{r.description}</dd>
+          </div>
+        ))}
+        <div className="sm:flex sm:gap-3">
+          <dt className="shrink-0 font-semibold text-strong sm:w-[150px]">
+            Required
+          </dt>
+          <dd className="text-sub">
+            Marked with a red asterisk — the member can’t finish without it.
+          </dd>
+        </div>
+      </dl>
+    </details>
   );
 }

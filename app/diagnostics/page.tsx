@@ -161,16 +161,28 @@ async function probe(): Promise<Row[]> {
     });
     return rows;
   }
+  /*
+   * Report the key that is ACTUALLY IN USE, and describe the plain variable's
+   * shape only when there is a plain variable to describe.
+   *
+   * The old version printed "set · 0 characters · has BEGIN: false" once
+   * `GOOGLE_SA_PRIVATE_KEY` was deleted, which reads as a broken key sitting
+   * next to four green rows. The shape breakdown exists to diagnose a MANGLED
+   * PASTE — it is noise when the plain variable is absent and B64 is doing the
+   * work, and actively misleading when it describes an empty string.
+   */
   rows.push({
     label: "GOOGLE_SA_PRIVATE_KEY",
     ok: true,
-    detail:
-      `set · ${rawKey.length} characters` +
-      (b64Key ? ` (plus a B64 variant, ${b64Key.length} chars — that one wins)` : "") +
-      ` · has BEGIN: ${/BEGIN [A-Z ]*PRIVATE KEY/.test(rawKey)}` +
-      ` · has END: ${/END [A-Z ]*PRIVATE KEY/.test(rawKey)}` +
-      ` · escaped \\n: ${rawKey.includes("\\n")}` +
-      ` · real newlines: ${rawKey.includes("\n")}`,
+    detail: !rawKey
+      ? `using GOOGLE_SA_PRIVATE_KEY_B64 (${b64Key.length} chars) · ` +
+        `the plain variable isn't set, which is the tidy state`
+      : `set · ${rawKey.length} characters` +
+        (b64Key ? ` (plus a B64 variant, ${b64Key.length} chars — that one wins)` : "") +
+        ` · has BEGIN: ${/BEGIN [A-Z ]*PRIVATE KEY/.test(rawKey)}` +
+        ` · has END: ${/END [A-Z ]*PRIVATE KEY/.test(rawKey)}` +
+        ` · escaped \\n: ${rawKey.includes("\\n")}` +
+        ` · real newlines: ${rawKey.includes("\n")}`,
   });
 
   // ── Stage 2: does it PARSE? No network — isolates a mangled paste ─────────

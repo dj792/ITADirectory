@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import authConfig from "@/auth.config";
 import { NextResponse } from "next/server";
 import { testingModeEnabled } from "@/lib/testing-mode";
+import { ADMIN_COOKIE, adminCookieValidEdge } from "@/lib/admin-gate-edge";
 
 // Middleware runs on the Edge runtime, so it uses ONLY the edge-safe config
 // (no Sheets, no crypto, no mailer). `lib/testing-mode` is edge-safe too — it
@@ -25,8 +26,37 @@ const { auth } = NextAuth(authConfig);
  * The page still shows the red TESTING MODE banner, so an open directory can't
  * be mistaken for a secured one.
  */
-export default auth((req) => {
+export default auth(async (req) => {
   const { pathname } = req.nextUrl;
+
+  /*
+   * ── THE ADMIN GATE, BEFORE ANYTHING RENDERS ──────────────────────────────
+   *
+   * First, and deliberately ahead of the testing-mode bypass below: testing
+   * mode opens the DIRECTORY, which is a read surface. The admin screens write
+   * to ITA's configuration, and nothing about "let people look at the
+   * directory without signing in" implies "let people edit the forms".
+   *
+   * It must be HERE rather than in the admin layout. The first version checked
+   * in the layout and rendered a password prompt, which looked right and was
+   * not: Next renders layout and page in parallel, so the page still ran, still
+   * read the configuration, and still serialized it into the RSC payload inside
+   * the HTML. The prompt was visible; the data was one `curl` away. Middleware
+   * redirects before any page component executes, so there is nothing to leak.
+   *
+   * `/admin-login` is deliberately OUTSIDE `/admin` so the form itself is
+   * reachable without passing the gate that guards everything else.
+   */
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) {
+    const ok = await adminCookieValidEdge(req.cookies.get(ADMIN_COOKIE)?.value);
+    if (!ok) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/admin-login";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+    return NextResponse.next();
+  }
 
   if (
     pathname.startsWith("/api/auth") ||

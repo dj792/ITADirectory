@@ -113,7 +113,25 @@ async function mintAccessToken(): Promise<string> {
     b64url({
       iss: email,
       // Read-only: this app never writes to the directory sheet.
-      scope: "https://www.googleapis.com/auth/spreadsheets.readonly",
+      /*
+       * READ/WRITE since 28 Sep 2026, widened from `spreadsheets.readonly` so
+       * the admin screens can maintain the form-configuration tabs.
+       *
+       * TWO THINGS THIS DOES NOT DO, both worth knowing:
+       *
+       * 1. It does not grant anything on its own. The service account must also
+       *    be an EDITOR on the workbook in Google's own sharing dialog; with
+       *    Viewer access, writes fail with 403 no matter what scope the token
+       *    carries. That share change is a manual step.
+       * 2. It does not touch the Aligned KPIs app. A scope belongs to the TOKEN
+       *    this app mints, not to the service account, so the other app keeps
+       *    minting read-only tokens for its own sheets.
+       *
+       * The app still only ever writes to the configuration tabs and
+       * `ProfileFieldValues` — `lib/forms/write.ts` is the one module that
+       * writes at all, and it names the tabs it will touch.
+       */
+      scope: "https://www.googleapis.com/auth/spreadsheets",
       aud: "https://oauth2.googleapis.com/token",
       iat: now,
       exp: now + 3600,
@@ -174,8 +192,28 @@ const tabCache = new Map<string, { at: number; data: SheetTab }>();
 
 export type SheetTab = { headers: string[]; rows: string[][] };
 
-export function invalidateTab(tab: string): void {
-  tabCache.delete(tab);
+/**
+ * Forget a cached tab so the next read is fresh. Call it after every write.
+ *
+ * TAKES THE SPREADSHEET ID, and that is a bug fix rather than an API choice:
+ * the cache is keyed `${spreadsheetId}::${tab}` while this used to delete by
+ * `tab` alone, so it never matched anything. It was harmless only because
+ * nothing in this app wrote — the moment the admin screens did, an edit would
+ * have appeared to save and then shown the old value for five minutes, which
+ * reads as "the save didn't work" and invites saving again.
+ *
+ * Omit `tab` to drop every cached tab of a workbook — the right hammer after a
+ * write that touched more than one.
+ */
+export function invalidateTab(spreadsheetId: string, tab?: string): void {
+  if (tab !== undefined) {
+    tabCache.delete(`${spreadsheetId}::${tab}`);
+    return;
+  }
+  const prefix = `${spreadsheetId}::`;
+  for (const key of tabCache.keys()) {
+    if (key.startsWith(prefix)) tabCache.delete(key);
+  }
 }
 
 /** Read an entire tab of a given spreadsheet as { headers, rows }. */
@@ -362,4 +400,154 @@ export async function resolveTab(
  */
 export async function firstTabTitle(token: string, spreadsheetId: string): Promise<string> {
   return resolveTab(token, spreadsheetId, "");
+}
+
+/* ============================================================== WRITING ==
+ *
+ * Everything below writes. Four rules hold for all of it, and they are the
+ * difference between a config sheet people trust and one they stop trusting:
+ *
+ *  1. **NEVER DELETE A ROW.** Deleting shifts every row beneath it, which
+ *     invalidates any row index another request is holding, and breaks the
+ *     `max + 1` id convention by making the highest id reusable. Deactivate by
+ *     setting a cell instead. (Same rule as `lib/members.ts` in Aligned KPIs.)
+ *  2. **WRITE CELLS, NOT ROWS,** wherever the change is to one field. Two
+ *     people editing different columns of the same row then don't clobber each
+ *     other, and a partial failure leaves the rest of the row intact.
+ *  3. **INVALIDATE THE CACHE** after every write, or the UI shows the old value
+ *     for five minutes and the user saves again.
+ *  4. **RESOLVE COLUMNS BY HEADER NAME** on the way in, exactly as reads do.
+ */
+
+/** 0-based column index → A1 letter. 0 → "A", 26 → "AA". */
+export function colLetter(index: number): string {
+  let n = index + 1;
+  let out = "";
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    out = String.fromCharCode(65 + rem) + out;
+    n = Math.floor((n - 1) / 26);
+  }
+  return out;
+}
+
+/** One cell to write, addressed by the row's position and a header name. */
+export type CellEdit = {
+  /** 0-based index into `SheetTab.rows` — NOT the spreadsheet's row number. */
+  rowIndex: number;
+  header: string;
+  value: string;
+};
+
+/**
+ * Write a set of cells in one request.
+ *
+ * `values.batchUpdate` rather than a call per cell: reordering a form touches
+ * two cells and editing a field touches eight, and a request each would spend
+ * the 60-per-minute budget on a single click. One request also means one
+ * failure rather than a half-applied edit.
+ *
+ * Row indexes are into the parsed `rows` array, so callers work in the same
+ * coordinates `readTab` hands them; the +2 converts to a spreadsheet row
+ * number (1 for the header, 1 because sheets count from one).
+ */
+export async function writeCells(
+  token: string,
+  spreadsheetId: string,
+  tab: string,
+  headers: string[],
+  edits: CellEdit[]
+): Promise<void> {
+  if (edits.length === 0) return;
+
+  const data = edits.map((e) => {
+    const col = headerIndex(headers, e.header);
+    if (col < 0) {
+      throw new Error(
+        `The "${tab}" tab has no "${e.header}" column, so there is nowhere to ` +
+          `write that value. Add the column, or rename it back.`
+      );
+    }
+    const a1 = `${colLetter(col)}${e.rowIndex + 2}`;
+    return { range: `${tab}!${a1}`, values: [[e.value]] };
+  });
+
+  const url =
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}` +
+    `/values:batchUpdate`;
+  const resp = await sheetsFetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ valueInputOption: "RAW", data }),
+  });
+  if (!resp.ok) throw new Error(await writeError(resp, tab));
+  invalidateTab(spreadsheetId, tab);
+}
+
+/**
+ * Append rows to the bottom of a tab.
+ *
+ * `INSERT_ROWS` so an append can never overwrite something that arrived since
+ * the last read, and `RAW` so a value that looks like a formula or a date is
+ * stored as the text it is — a field id of `-1` or an option labelled `1/2`
+ * must not become a number.
+ */
+export async function appendRows(
+  token: string,
+  spreadsheetId: string,
+  tab: string,
+  rows: string[][]
+): Promise<void> {
+  if (rows.length === 0) return;
+  const url =
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}` +
+    `/values/${encodeURIComponent(`${tab}!A1`)}:append` +
+    `?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
+  const resp = await sheetsFetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ values: rows }),
+  });
+  if (!resp.ok) throw new Error(await writeError(resp, tab));
+  invalidateTab(spreadsheetId, tab);
+}
+
+/**
+ * Build a row in the tab's OWN column order from a header→value map.
+ *
+ * The point of going through the headers: a tab whose columns someone
+ * reordered, or which has a column this app doesn't know about, still gets a
+ * correctly aligned row. An unknown header in `values` is ignored rather than
+ * appended, because inventing a column is not an append's job.
+ */
+export function rowFromValues(
+  headers: string[],
+  values: Record<string, string>
+): string[] {
+  const row = headers.map(() => "");
+  for (const [header, value] of Object.entries(values)) {
+    const i = headerIndex(headers, header);
+    if (i >= 0) row[i] = value;
+  }
+  return row;
+}
+
+/** A write failure, said in terms of the thing someone was trying to do. */
+async function writeError(resp: Response, tab: string): Promise<string> {
+  const body = await resp.text();
+  if (resp.status === 403) {
+    return (
+      `Google refused the write to "${tab}" (403). The service account can READ ` +
+      `this workbook but not write to it — share the sheet with ` +
+      `${process.env.GOOGLE_SA_EMAIL ?? "the service account"} as an EDITOR.`
+    );
+  }
+  if (resp.status === 429) return quotaMessage(tab);
+  return `Could not write to "${tab}" (${resp.status}): ${body.slice(0, 300)}`;
 }
