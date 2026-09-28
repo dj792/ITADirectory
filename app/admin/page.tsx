@@ -15,6 +15,7 @@ import {
   updateFieldAction,
 } from "./fields-actions";
 import { Banner, Card, Select, TextInput } from "./ui";
+import SubmitButton from "./SubmitButton";
 
 /**
  * MANAGE THE FIELDS ON ONE FORM.
@@ -65,6 +66,7 @@ export default async function AdminFieldsPage({
     .sort((a, b) => a.label.localeCompare(b.label));
 
   const editing = one("edit");
+  const highlight = one("highlight");
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
@@ -74,7 +76,7 @@ export default async function AdminFieldsPage({
         immediately.
       </p>
 
-      <Banner error={one("error")} saved={!!one("saved")} />
+      <Banner error={one("error")} saved={one("saved")} />
 
       {config.source !== "sheet" && (
         <p className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">
@@ -129,6 +131,7 @@ export default async function AdminFieldsPage({
               field={f}
               type={type}
               back={back}
+              highlighted={f.id === highlight}
               first={i === 0}
               last={i === fields.length - 1}
               expanded={editing === f.id}
@@ -151,13 +154,11 @@ export default async function AdminFieldsPage({
                 <input type="hidden" name="back" value={back} />
                 <input type="hidden" name="type" value={type} />
                 <input type="hidden" name="fieldId" value={f.id} />
+                <input type="hidden" name="label" value={f.label} />
                 <input type="hidden" name="on" value="1" />
-                <button
-                  type="submit"
-                  className="rounded-md border border-hair bg-panel px-3 py-1 text-[13px] hover:border-accent hover:text-accent"
-                >
+                <SubmitButton variant="secondary" pendingLabel="Adding…">
                   + {f.label}
-                </button>
+                </SubmitButton>
               </form>
             ))}
           </div>
@@ -195,6 +196,7 @@ function FieldRow({
   first,
   last,
   expanded,
+  highlighted,
   optionSets,
   groups,
 }: {
@@ -204,29 +206,34 @@ function FieldRow({
   first: boolean;
   last: boolean;
   expanded: boolean;
+  highlighted: boolean;
   optionSets: string[];
   groups: string[];
 }) {
+  /*
+   * The row that just changed is RINGED. A confirmation says what happened; the
+   * ring shows where — which matters most for "create", since a new field is
+   * appended to the end of a list the reader can't see from the top.
+   */
   return (
-    <div className="rounded-lg border border-hair bg-panel">
+    <div
+      id={highlighted ? "admin-changed" : undefined}
+      className={`rounded-lg border bg-panel scroll-mt-24 ${
+        highlighted ? "border-accent ring-2 ring-accent/30" : "border-hair"
+      }`}
+    >
       <div className="flex items-start gap-3 p-3">
         {/* Order controls. Disabled at the ends rather than hidden, so the
             column doesn't reflow and the first row's buttons stay where the
             eye expects them. */}
         <div className="flex shrink-0 flex-col gap-1">
           <MoveButton
-            back={back}
-            type={type}
-            fieldId={f.id}
-            direction="up"
-            disabled={first}
+            back={back} type={type} fieldId={f.id} label={f.label}
+            direction="up" disabled={first}
           />
           <MoveButton
-            back={back}
-            type={type}
-            fieldId={f.id}
-            direction="down"
-            disabled={last}
+            back={back} type={type} fieldId={f.id} label={f.label}
+            direction="down" disabled={last}
           />
         </div>
 
@@ -258,14 +265,15 @@ function FieldRow({
             <input type="hidden" name="back" value={back} />
             <input type="hidden" name="type" value={type} />
             <input type="hidden" name="fieldId" value={f.id} />
+            <input type="hidden" name="label" value={f.label} />
             <input type="hidden" name="on" value="0" />
-            <button
-              type="submit"
-              className="text-sub hover:text-amber-700"
+            <SubmitButton
+              variant="ghost"
+              pendingLabel="Removing…"
               title={`Stop asking this on the ${type} form. The field and any answers are kept.`}
             >
               Remove
-            </button>
+            </SubmitButton>
           </form>
         </div>
       </div>
@@ -286,12 +294,14 @@ function MoveButton({
   back,
   type,
   fieldId,
+  label,
   direction,
   disabled,
 }: {
   back: string;
   type: string;
   fieldId: string;
+  label: string;
   direction: "up" | "down";
   disabled: boolean;
 }) {
@@ -300,15 +310,11 @@ function MoveButton({
       <input type="hidden" name="back" value={back} />
       <input type="hidden" name="type" value={type} />
       <input type="hidden" name="fieldId" value={fieldId} />
+      <input type="hidden" name="label" value={label} />
       <input type="hidden" name="direction" value={direction} />
-      <button
-        type="submit"
-        disabled={disabled}
-        aria-label={`Move ${direction}`}
-        className="flex h-6 w-6 items-center justify-center rounded border border-hair text-[11px] text-sub enabled:hover:border-accent enabled:hover:text-accent disabled:opacity-30"
-      >
+      <SubmitButton variant="icon" disabled={disabled} ariaLabel={`Move ${direction}`}>
         {direction === "up" ? "▲" : "▼"}
-      </button>
+      </SubmitButton>
     </form>
   );
 }
@@ -381,12 +387,7 @@ function EditForm({
       </div>
 
       <div className="mt-3 flex items-center gap-3">
-        <button
-          type="submit"
-          className="rounded-md bg-accent px-4 py-1.5 text-[13px] font-medium text-white hover:bg-accentDark"
-        >
-          Save changes
-        </button>
+        <SubmitButton pendingLabel="Saving…">Save changes</SubmitButton>
         <span className="text-[12px] text-sub">
           The field’s id (<code className="font-mono">{f.id}</code>) can’t change —
           members’ existing answers are stored against it.
@@ -478,12 +479,9 @@ function NewFieldForm({
           </div>
         </fieldset>
 
-        <button
-          type="submit"
-          className="mt-4 rounded-md bg-accent px-4 py-1.5 text-[13px] font-medium text-white hover:bg-accentDark"
-        >
-          Create field
-        </button>
+        <div className="mt-4">
+          <SubmitButton pendingLabel="Creating…">Create field</SubmitButton>
+        </div>
       </form>
     </Card>
   );

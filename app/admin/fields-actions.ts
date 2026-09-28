@@ -40,18 +40,40 @@ async function requireAdmin(): Promise<void> {
   }
 }
 
-/** Run a write, then land back where the person was, error or not. */
-async function run(back: string, fn: () => Promise<void>): Promise<never> {
+/**
+ * Run a write, then land back where the person was with a message saying what
+ * happened.
+ *
+ * **The message is SPECIFIC, not "Saved."** A generic confirmation next to an
+ * unchanged-looking page is barely better than silence: the create form sits at
+ * the bottom of a long list, a new field is appended to the END of that list,
+ * and the redirect lands you at the top — so "Saved." asks the reader to take
+ * it on faith. "Added "Elevator Pitch" to the Technology Partner form" is
+ * checkable against what they meant to do.
+ *
+ * `highlight` names a field the page should mark, so the thing that changed can
+ * be pointed at rather than described.
+ */
+async function run(
+  back: string,
+  message: string,
+  fn: () => Promise<void>,
+  highlight?: string
+): Promise<never> {
   await requireAdmin();
   try {
     await fn();
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    redirect(`${back}${back.includes("?") ? "&" : "?"}error=${encodeURIComponent(message)}`);
+    const detail = err instanceof Error ? err.message : String(err);
+    redirect(`${back}${back.includes("?") ? "&" : "?"}error=${encodeURIComponent(detail)}`);
   }
   revalidatePath("/admin");
   revalidatePath("/admin/forms");
-  redirect(`${back}${back.includes("?") ? "&" : "?"}saved=1`);
+  const sep = back.includes("?") ? "&" : "?";
+  const mark = highlight ? `&highlight=${encodeURIComponent(highlight)}` : "";
+  // `#admin-banner` so the browser scrolls the confirmation into view rather
+  // than landing at the top of a page that looks unchanged.
+  redirect(`${back}${sep}saved=${encodeURIComponent(message)}${mark}#admin-banner`);
 }
 
 const str = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
@@ -60,29 +82,45 @@ export async function moveFieldAction(formData: FormData) {
   const back = str(formData, "back") || "/admin";
   const type = str(formData, "type");
   const fieldId = str(formData, "fieldId");
+  const label = str(formData, "label") || fieldId;
   const dir = str(formData, "direction") === "up" ? "up" : "down";
-  await run(back, () => moveField(type, fieldId, dir));
+  await run(back, `Moved “${label}” ${dir}.`, () => moveField(type, fieldId, dir), fieldId);
 }
 
 export async function toggleFieldOnFormAction(formData: FormData) {
   const back = str(formData, "back") || "/admin";
   const type = str(formData, "type");
   const fieldId = str(formData, "fieldId");
+  const label = str(formData, "label") || fieldId;
   const on = str(formData, "on") === "1";
-  await run(back, () => setFieldOnForm(type, fieldId, on));
+  await run(
+    back,
+    on
+      ? `Added “${label}” to the ${type} form.`
+      : `Removed “${label}” from the ${type} form. The field and any answers are kept.`,
+    () => setFieldOnForm(type, fieldId, on),
+    on ? fieldId : undefined
+  );
 }
 
 export async function toggleFieldActiveAction(formData: FormData) {
   const back = str(formData, "back") || "/admin";
   const fieldId = str(formData, "fieldId");
+  const label = str(formData, "label") || fieldId;
   const on = str(formData, "on") === "1";
-  await run(back, () => setFieldActive(fieldId, on));
+  await run(
+    back,
+    on ? `Turned “${label}” back on.` : `Turned “${label}” off on every form.`,
+    () => setFieldActive(fieldId, on),
+    fieldId
+  );
 }
 
 export async function updateFieldAction(formData: FormData) {
   const back = str(formData, "back") || "/admin";
   const fieldId = str(formData, "fieldId");
-  await run(back, () =>
+  const label = str(formData, "label") || fieldId;
+  await run(back, `Saved changes to “${label}”.`, () =>
     updateField(fieldId, {
       label: str(formData, "label"),
       dataType: str(formData, "dataType"),
@@ -92,13 +130,17 @@ export async function updateFieldAction(formData: FormData) {
       searchMode: str(formData, "searchMode"),
       group: str(formData, "group"),
       helpText: str(formData, "helpText"),
-    })
+    }),
+    fieldId
   );
 }
 
 export async function addFieldAction(formData: FormData) {
   const back = str(formData, "back") || "/admin";
-  await run(back, () =>
+  const label = str(formData, "label");
+  const types = formData.getAll("applicationTypes").map(String);
+  const where = types.length ? ` to the ${types.join(", ")} form${types.length > 1 ? "s" : ""}` : "";
+  await run(back, `Added “${label}”${where}.`, () =>
     addField({
       id: str(formData, "id"),
       label: str(formData, "label"),
@@ -109,32 +151,39 @@ export async function addFieldAction(formData: FormData) {
       searchMode: str(formData, "searchMode"),
       group: str(formData, "group"),
       helpText: str(formData, "helpText"),
-      applicationTypes: formData.getAll("applicationTypes").map(String),
-    })
+      applicationTypes: types,
+    }),
+    str(formData, "id").trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "")
   );
 }
 
 export async function addOptionAction(formData: FormData) {
   const back = str(formData, "back") || "/admin/options";
-  await run(back, () =>
+  await run(back, `Added “${str(formData, "value")}” to ${str(formData, "optionSet")}.`, () =>
     addOption(str(formData, "optionSet"), str(formData, "value"), str(formData, "label"))
   );
 }
 
 export async function toggleOptionAction(formData: FormData) {
   const back = str(formData, "back") || "/admin/options";
-  await run(back, () =>
+  const on = str(formData, "on") === "1";
+  await run(
+    back,
+    on
+      ? `Restored “${str(formData, "value")}”.`
+      : `Retired “${str(formData, "value")}”. Members who already chose it keep their answer.`,
+    () =>
     setOptionActive(
       str(formData, "optionSet"),
       str(formData, "value"),
-      str(formData, "on") === "1"
+      on
     )
   );
 }
 
 export async function renameOptionAction(formData: FormData) {
   const back = str(formData, "back") || "/admin/options";
-  await run(back, () =>
+  await run(back, `Renamed to “${str(formData, "label")}”.`, () =>
     renameOption(str(formData, "optionSet"), str(formData, "value"), str(formData, "label"))
   );
 }

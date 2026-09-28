@@ -17,10 +17,27 @@ const montserrat = Montserrat({
   display: "swap",
 });
 
+/**
+ * Icons are generated from ITA's own logo by `scripts/make-icons.py` — run that
+ * rather than editing the PNGs, and read its header for why the artwork differs
+ * between sizes (short version: "ita" alone at 16px reads as "itc").
+ *
+ * `favicon.ico` is listed FIRST and carries seven sizes. Browsers pick from it
+ * by size, and it is also what anything asking for `/favicon.ico` by convention
+ * gets — including link previews and feed readers that never look at the HTML.
+ */
 export const metadata: Metadata = {
   title: "ITA Member Directory",
   description: "Search the Information Technology Alliance membership directory.",
-  icons: { icon: "/ita-icon.png" },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  manifest: "/site.webmanifest",
 };
 
 export const viewport = { themeColor: BRAND.blue };

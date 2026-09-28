@@ -5,6 +5,7 @@ import {
   toggleOptionAction,
 } from "../fields-actions";
 import { Banner, Card, TextInput } from "../ui";
+import SubmitButton from "../SubmitButton";
 
 /**
  * THE DROPDOWN LISTS — the values behind every "choose one" and "choose several".
@@ -56,7 +57,7 @@ export default async function AdminOptionsPage({
         The choices members pick from. A list can be used by more than one field.
       </p>
 
-      <Banner error={one("error")} saved={!!one("saved")} />
+      <Banner error={one("error")} saved={one("saved")} />
 
       {sets.length === 0 && (
         <p className="mt-6 rounded-lg border border-hair bg-panel px-4 py-8 text-center text-[14px] text-sub">
@@ -96,12 +97,11 @@ export default async function AdminOptionsPage({
                         aria-label={`Label for ${o.value}`}
                         className="min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-2 py-1 text-[14px] hover:border-hair focus:border-accent focus:bg-white focus:outline-none"
                       />
-                      <button
-                        type="submit"
-                        className="shrink-0 text-[12px] text-accent hover:underline"
-                      >
-                        Rename
-                      </button>
+                      <span className="shrink-0">
+                        <SubmitButton variant="ghost" pendingLabel="Saving…">
+                          Rename
+                        </SubmitButton>
+                      </span>
                     </form>
 
                     <code className="shrink-0 font-mono text-[11px] text-sub opacity-70">
@@ -113,13 +113,13 @@ export default async function AdminOptionsPage({
                       <input type="hidden" name="optionSet" value={set} />
                       <input type="hidden" name="value" value={o.value} />
                       <input type="hidden" name="on" value="0" />
-                      <button
-                        type="submit"
-                        className="text-[12px] text-sub hover:text-amber-700"
+                      <SubmitButton
+                        variant="ghost"
+                        pendingLabel="Retiring…"
                         title="Stop offering this choice. Members who already picked it keep their answer."
                       >
                         Retire
-                      </button>
+                      </SubmitButton>
                     </form>
                   </li>
                 ))}
@@ -142,12 +142,9 @@ export default async function AdminOptionsPage({
                     className="mt-1 w-full rounded-md border border-hair bg-white px-3 py-1.5 text-[14px] focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
                   />
                 </div>
-                <button
-                  type="submit"
-                  className="rounded-md border border-hair bg-panel px-3 py-1.5 text-[13px] hover:border-accent hover:text-accent"
-                >
+                <SubmitButton variant="secondary" pendingLabel="Adding…">
                   Add
-                </button>
+                </SubmitButton>
               </form>
             </section>
           );
@@ -165,12 +162,7 @@ export default async function AdminOptionsPage({
           />
           <TextInput name="value" label="First choice" required />
           <div className="flex items-end">
-            <button
-              type="submit"
-              className="rounded-md bg-accent px-4 py-1.5 text-[13px] font-medium text-white hover:bg-accentDark"
-            >
-              Create list
-            </button>
+            <SubmitButton pendingLabel="Creating…">Create list</SubmitButton>
           </div>
         </form>
       </Card>

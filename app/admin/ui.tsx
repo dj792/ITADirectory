@@ -30,28 +30,53 @@ export function Card({
  * "share the sheet as an EDITOR") and paraphrasing it here would lose the one
  * part that says what to do next.
  */
-export function Banner({ error, saved }: { error?: string; saved?: boolean }) {
-  if (error) {
-    return (
-      <p
-        role="alert"
-        className="mt-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-[13px] text-red-900"
-      >
-        {error}
-      </p>
-    );
+export function Banner({ error, saved }: { error?: string; saved?: string }) {
+  if (!error && !saved) {
+    // The anchor still has to EXIST when there's no message, or the `#admin-banner`
+    // on a redirect scrolls nowhere and the page lands at the top looking
+    // unchanged — which is the complaint that prompted all of this.
+    return <span id="admin-banner" className="block scroll-mt-24" />;
   }
-  if (saved) {
-    return (
-      <p
-        role="status"
-        className="mt-4 rounded-lg border border-accent/30 bg-accent/5 px-4 py-3 text-[13px] text-accentDark"
+
+  const ok = !error;
+  return (
+    <div
+      id="admin-banner"
+      role={ok ? "status" : "alert"}
+      className={`mt-4 flex items-start gap-3 rounded-lg border-l-4 px-4 py-3 scroll-mt-24 ${
+        ok
+          ? "border-l-accent border-y border-r border-y-accent/20 border-r-accent/20 bg-accent/5"
+          : "border-l-red-500 border-y border-r border-y-red-200 border-r-red-200 bg-red-50"
+      }`}
+    >
+      <span
+        aria-hidden="true"
+        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[12px] font-bold text-white ${
+          ok ? "bg-accent" : "bg-red-500"
+        }`}
       >
-        Saved.
-      </p>
-    );
-  }
-  return null;
+        {ok ? "✓" : "!"}
+      </span>
+      <div className="min-w-0">
+        <p
+          className={`text-[14px] font-semibold ${
+            ok ? "text-accentDark" : "text-red-900"
+          }`}
+        >
+          {ok ? "Saved" : "That didn’t save"}
+        </p>
+        {/*
+          The detail is shown VERBATIM. Every message the write layer produces is
+          written for the person who caused it ("a field with id X already
+          exists", "share the sheet as an EDITOR"), and paraphrasing here would
+          drop the part that says what to do next.
+        */}
+        <p className={`text-[13px] ${ok ? "text-fg" : "text-red-900"}`}>
+          {ok ? saved : error}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 export function TextInput({
