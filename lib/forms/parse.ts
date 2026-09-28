@@ -646,3 +646,28 @@ export function valuesByProfile(values: FieldValue[]): Map<string, Map<string, s
   }
   return out;
 }
+
+/**
+ * WHICH FORM DOES THIS MEMBER GET — the one place that decides.
+ *
+ * Two inputs, and the second is the subtle one:
+ *
+ *  · A MEMBER uses their own membership level.
+ *  · A RELATED INDIVIDUAL — someone admitted because they work at a member firm
+ *    — has no level of their own, so they take THEIR FIRM'S
+ *    (`orgMembershipLevel`). An employee of a Technology Partner is asked the
+ *    Technology Partner questions, narrowed by `appliesTo` to the ones that
+ *    belong to a person rather than a company. Falling back to the DEFAULT form
+ *    instead would ask a Gold firm's staff a generic three-field form, which is
+ *    not what "their firm is a Technology Partner" should mean.
+ *
+ * Kept beside `formFor` so the member page, the admin editor and any future
+ * self-service screen cannot disagree about what someone is asked.
+ */
+export function formForMember(
+  config: FormConfig,
+  member: { membershipLevel: string; orgMembershipLevel: string; isOrganization: boolean; isMember: boolean }
+): Form {
+  const level = member.isMember ? member.membershipLevel : member.orgMembershipLevel;
+  return formFor(config, level || "", member.isOrganization);
+}

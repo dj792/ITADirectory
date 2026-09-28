@@ -56,6 +56,9 @@ export default async function AdminLayout({
           <Link href="/admin" className="text-accent hover:underline">
             Fields
           </Link>
+          <Link href="/admin/members" className="text-accent hover:underline">
+            Members
+          </Link>
           <Link href="/admin/options" className="text-accent hover:underline">
             Dropdown lists
           </Link>

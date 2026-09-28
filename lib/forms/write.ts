@@ -10,10 +10,16 @@ import {
   type SheetTab,
 } from "@/lib/sheets-core";
 import { directorySheetId } from "@/lib/directory/config";
-import { fieldOptionsTab, fieldsByTypeTab, fieldsTab } from "@/lib/tabs";
-import { invalidateFormConfig } from "./service";
+import {
+  fieldOptionsTab,
+  fieldsByTypeTab,
+  fieldsTab,
+  profileFieldValuesTab,
+} from "@/lib/tabs";
+import { invalidateFieldValues, invalidateFormConfig } from "./service";
+import { reconcile, summarize, type Answers } from "./values";
 import { isReservedField } from "./parse";
-import { DATA_TYPES, SEARCH_MODES, VISIBILITIES } from "./types";
+import { DATA_TYPES, SEARCH_MODES, VISIBILITIES, type FormField } from "./types";
 
 /**
  * THE ONLY MODULE IN THIS APP THAT WRITES.
@@ -473,4 +479,86 @@ export async function renameOption(
     { rowIndex, header: "Label", value: label.trim() || value },
   ]);
   invalidateFormConfig();
+}
+
+/* ------------------------------------------------- a member's ANSWERS -- */
+
+/**
+ * Save one member's answers.
+ *
+ * The reconcile itself is pure and lives in `values.ts`; this is the part that
+ * talks to Sheets. One read, one batch of cell edits, one append — because a
+ * form with twenty fields would otherwise be twenty round trips against a
+ * shared 60-per-minute budget, and a partial failure halfway through would
+ * leave a profile half-saved with no way to tell which half.
+ *
+ * Rows are read INCLUDING inactive ones: a retired answer is reusable, and
+ * filtering them out here would make every un-tick/re-tick grow the tab.
+ */
+export async function saveProfileValues(
+  profileId: string,
+  fields: FormField[],
+  answers: Answers,
+  by: string
+): Promise<string> {
+  if (!profileId) throw new Error("No profile to save against.");
+  const ctx = await open(profileFieldValuesTab());
+
+  const i = {
+    valueId: headerIndex(ctx.grid.headers, "ValueID"),
+    profileId: headerIndex(ctx.grid.headers, "ProfileID"),
+    fieldId: headerIndex(ctx.grid.headers, "FieldID"),
+    value: headerIndex(ctx.grid.headers, "Value"),
+    sortOrder: headerIndex(ctx.grid.headers, "SortOrder"),
+    updatedAt: headerIndex(ctx.grid.headers, "UpdatedAt"),
+    updatedBy: headerIndex(ctx.grid.headers, "UpdatedBy"),
+    active: headerIndex(ctx.grid.headers, "Active"),
+  };
+  if (i.profileId < 0 || i.fieldId < 0 || i.value < 0) {
+    throw new Error(
+      `The "${ctx.tab}" tab needs ProfileID, FieldID and Value columns before ` +
+        `answers can be saved.`
+    );
+  }
+
+  const get = (row: string[], idx: number) => (idx < 0 ? "" : (row[idx] ?? "").trim());
+  const rows = ctx.grid.rows.map((row, rowIndex) => ({
+    rowIndex,
+    valueId: get(row, i.valueId),
+    profileId: get(row, i.profileId),
+    fieldId: get(row, i.fieldId),
+    value: get(row, i.value),
+    sortOrder: Number(get(row, i.sortOrder)) || 0,
+    updatedAt: get(row, i.updatedAt),
+    updatedBy: get(row, i.updatedBy),
+    // A BLANK Active means active, matching how the config tabs read.
+    active:
+      i.active < 0 ||
+      (() => {
+        const v = get(row, i.active).toLowerCase();
+        return v === "" || !["false", "0", "no", "off"].includes(v);
+      })(),
+  }));
+
+  const plan = reconcile(
+    ctx.grid,
+    rows,
+    profileId,
+    fields,
+    answers,
+    new Date().toISOString(),
+    by
+  );
+
+  await writeCells(ctx.token, ctx.sheetId, ctx.tab, ctx.grid.headers, plan.edits);
+  if (plan.appends.length > 0) {
+    await appendRows(
+      ctx.token,
+      ctx.sheetId,
+      ctx.tab,
+      plan.appends.map((r) => rowFromValues(ctx.grid.headers, r))
+    );
+  }
+  invalidateFieldValues();
+  return summarize(plan.summary);
 }
