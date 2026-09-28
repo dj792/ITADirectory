@@ -47,7 +47,7 @@ export const metadata: Metadata = {
  *  page is statically prerendered, so a computed date would freeze at build
  *  time and quietly disagree with the dynamic pages. Bump it when the notes
  *  change. */
-const AS_OF = "16 September 2026";
+const AS_OF = "28 September 2026";
 
 export default function ReleaseNotesPage() {
   return (
@@ -155,8 +155,7 @@ export default function ReleaseNotesPage() {
         <Section title="Result cards, member pages and company rosters">
           <P>
             Results come back as cards showing the name, organization, membership level,
-            location, <strong className="font-semibold">Member since</strong> (as a month and
-            year), email and website. The whole card is clickable.
+            location, email and website. The whole card is clickable.
           </P>
           <P>
             Clicking through opens that member&rsquo;s own page, at its own web address, with
@@ -264,7 +263,7 @@ export default function ReleaseNotesPage() {
 
         <Section title="Not yet switched on" id="not-yet-switched-on">
           <P>
-            Four things are deliberately incomplete, so you are not surprised by them during
+            Three things are deliberately incomplete, so you are not surprised by them during
             review.
           </P>
           <P>
@@ -280,15 +279,6 @@ export default function ReleaseNotesPage() {
             event registrations table — one row per person per event — the filter switches
             itself on, and we can also show last event attended and a count over any recent
             period. Nothing needs rebuilding; the app is already looking for it.
-          </P>
-          <P>
-            <strong className="font-semibold">
-              Member since is right for most, approximate for a few.
-            </strong>{" "}
-            Nine of roughly 200 member records carry a date that looks like the May 2024 data
-            migration rather than a real join date, and all nine are Emeritus. We have
-            deliberately not invented dates to fill the gap — an imperfect date you can see is
-            better than a tidy one that is wrong. Worth a look if those nine matter to you.
           </P>
           <P>
             <strong className="font-semibold">Two records to make a decision about.</strong> A

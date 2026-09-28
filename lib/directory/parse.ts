@@ -114,6 +114,27 @@ const COLS = {
   lastEventAttended: ["Last Event Attended"],
   eventCount12mo: ["Event Count Past 12 Months", "Event Count Past 12 Mo"],
   listingLevel: ["Listing Level", "Listing_Level"],
+  /*
+   * The public LISTING category an organization gets in the directory. Org-only
+   * in the data (0 of 2,362 individuals carry one), which is why the member
+   * page gates it on `isOrganization` rather than on having a value.
+   *
+   * ── SUB-CATEGORY AND DESCRIPTION ARE DELIBERATELY NOT READ ───────────────
+   *
+   * `Listing_PrimaryListingSubCategory` and `Listing_PrimaryListingDescr` were
+   * requested alongside this one and were built, then removed on 28 Sep 2026
+   * once the export was actually measured against the 196 published member
+   * organizations: the sub-category is set on ONE of them (to "Platinum" — a
+   * membership level, not a category), and the description on NONE. Carrying
+   * two permanently-blank fields through the type, the parser and the page is
+   * weight every later reader has to reason about.
+   *
+   * To restore them: two entries here, two on `Member`, two `cell()` reads, two
+   * `add()` calls on the member page, and the names in `columns.check.ts`.
+   * Worth doing the moment ITA populates the listings — and worth CHECKING the
+   * data first, which is how this was caught.
+   */
+  listingCategory: ["Listing_PrimaryListingCategory", "Primary Listing Category"],
 } as const;
 
 const cell = (row: string[], i: number): string =>
@@ -278,6 +299,7 @@ export function parseProfiles(tab: SheetTab): {
       // parser reads one row at a time and has no view of the relations table.
       orgMembershipLevel: "",
       listingLevel: cell(row, idx.listingLevel),
+      listingCategory: cell(row, idx.listingCategory),
     };
 
     profiles.push({ ...member, haystack: buildHaystack(member) });

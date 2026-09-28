@@ -98,7 +98,7 @@ const FIELDS: (keyof Member)[] = [
   "status", "memberSince", "lastEvent", "lastEventAttended", "eventCount12mo",
   "website", "city", "state", "zip", "phone", "address1", "address2",
   "contactName", "contactTitle", "contactPhone", "isOrganization",
-  "listingLevel", "haystack",
+  "listingLevel", "listingCategory", "haystack",
 ];
 
 /** First field-level disagreement between two parses, or null if identical. */

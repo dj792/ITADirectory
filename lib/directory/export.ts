@@ -54,7 +54,9 @@ const COLUMNS: { header: string; value: (m: Member) => string }[] = [
   { header: "Title", value: (m) => m.titleAtOrg },
   { header: "Membership level", value: (m) => (m.isMember ? m.membershipLevel : "") },
   { header: "Profile status", value: (m) => (m.isMember ? m.status : "") },
-  { header: "Member since", value: (m) => (m.isMember ? monthYearLabel(m.memberSince) : "") },
+  // "Member since" was a column here. Removed 28 Sep 2026 at ITA's request —
+  // join dates are not displayed on the card, the member page, or in this file.
+  // `memberSince` is still parsed; restoring it is one entry in this array.
   { header: "Email", value: (m) => m.email },
   { header: "Phone", value: (m) => m.phone },
   { header: "Website", value: (m) => m.website },

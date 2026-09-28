@@ -37,3 +37,6 @@ tsconfig.tsbuildinfo
 
 # local one-click deploy script (not part of the app)
 *.command
+
+# Seed fixtures for the form config (paste-ready TSV; not read in production)
+data/forms/

@@ -253,43 +253,65 @@ async function probe(): Promise<Row[]> {
     detail: allTabs.map((t) => `"${t}"`).join(" · "),
   });
 
+  /*
+   * Tab names are HARD-CODED now (`lib/tabs.ts`) with an env override, so the
+   * useful thing to report is which name was used and whether it came from a
+   * variable or from code — an env var left over from an older tab naming is
+   * exactly the failure this stage exists to catch.
+   */
+  const source = (envVar: string) =>
+    (process.env[envVar] ?? "").trim() ? `env ${envVar}` : "hard-coded";
+
   let tabTitle: string;
   try {
     tabTitle = await resolveTab(token, resolvedId, directoryTab(), "the members");
     rows.push({
-      label: "DIRECTORY_TAB",
+      label: "Directory tab",
       ok: true,
-      detail: directoryTab()
-        ? `set to "${directoryTab()}" → resolves to tab "${tabTitle}"`
-        : `not set · only one tab, so using "${tabTitle}"`,
+      detail: `"${directoryTab()}" (${source("DIRECTORY_TAB")}) → resolves to "${tabTitle}"`,
     });
   } catch (err) {
-    return [...rows, { label: "DIRECTORY_TAB", ok: false, detail: msg(err) }];
+    return [
+      ...rows,
+      {
+        label: "Directory tab",
+        ok: false,
+        detail:
+          `${msg(err)} — looking for "${directoryTab()}" ` +
+          `(${source("DIRECTORY_TAB")}). If that came from an env var, it is ` +
+          `probably left over from an older tab name; clear it and the ` +
+          `hard-coded name is used.`,
+      },
+    ];
   }
 
   // The relations tab is optional; report all three states distinctly.
   const relTab = relationsTab();
   if (!relTab) {
     rows.push({
-      label: "DIRECTORY_RELATIONS_TAB",
+      label: "Relations tab",
       ok: null,
       detail:
-        "not set — the directory is members only. Set it to publish member " +
-        "rosters and admit related individuals.",
+        "no name configured — the directory is members only, with no rosters " +
+        "and no related individuals.",
     });
   } else {
     try {
       const resolvedRel = await resolveTab(token, resolvedId, relTab, "the relations");
       rows.push({
-        label: "DIRECTORY_RELATIONS_TAB",
+        label: "Relations tab",
         ok: true,
-        detail: `set to "${relTab}" → resolves to tab "${resolvedRel}"`,
+        detail:
+          `"${relTab}" (${source("DIRECTORY_RELATIONS_TAB")}) → resolves to "${resolvedRel}"`,
       });
     } catch (err) {
       rows.push({
-        label: "DIRECTORY_RELATIONS_TAB",
+        label: "Relations tab",
         ok: false,
-        detail: `${msg(err)} (the member list still works without it)`,
+        detail:
+          `${msg(err)} — looking for "${relTab}" ` +
+          `(${source("DIRECTORY_RELATIONS_TAB")}). The member list still works ` +
+          `without it.`,
       });
     }
   }

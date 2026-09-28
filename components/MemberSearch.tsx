@@ -340,7 +340,6 @@ function SearchGlyph() {
  */
 function MemberCard({ member: m, filters }: { member: Member; filters: Filters }) {
   const place = [m.city, m.state].filter(Boolean).join(", ");
-  const memberSince = monthYearLabel(m.memberSince);
   return (
     <li className="relative flex flex-col rounded-xl border border-hair bg-panel p-4 shadow-sm transition hover:border-accent/40 hover:shadow-md focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/30">
       <h2 className="text-[15px] font-semibold leading-snug text-strong">
@@ -420,16 +419,12 @@ function MemberCard({ member: m, filters }: { member: Member; filters: Filters }
           </div>
         )}
         {/*
-          The only row that needs its own visible label. Place, email and
-          website announce what they are; a bare "March 2019" on a member card
-          does not — it could be a renewal, a last login, anything.
+          "Member since" WAS here. Removed 28 Sep 2026 at ITA's request — they
+          do not want join dates displayed. Also gone from the member page and
+          the CSV export; `memberSince` is still PARSED and still on `Member`,
+          so restoring it is this block plus the two other call sites, not a
+          data change. See CLAUDE.md.
         */}
-        {memberSince && (
-          <div className="flex gap-1">
-            <dt className="text-sub">Member since</dt>
-            <dd className="text-fg">{memberSince}</dd>
-          </div>
-        )}
         {m.website && (
           <div>
             <dt className="sr-only">Website</dt>

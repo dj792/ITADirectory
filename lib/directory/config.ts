@@ -1,14 +1,12 @@
 /**
- * Where the directory data lives. Two env vars, both server-side.
+ * Where the directory data lives.
  *
- * DIRECTORY_SHEET_ID accepts either a bare spreadsheet ID or a full Google
- * Sheets URL, because the value people actually have to hand is the URL from
- * the address bar — asking them to slice the ID out of it is one more chance to
- * paste the wrong 44 characters.
+ * ONE env var now: `DIRECTORY_SHEET_ID`. It accepts either a bare spreadsheet
+ * ID or a full Google Sheets URL, because the value people actually have to
+ * hand is the URL from the address bar — asking them to slice the ID out of it
+ * is one more chance to paste the wrong 44 characters.
  *
- * DIRECTORY_TAB is optional: blank means "the first tab", which is what the ITA
- * export produces (its tab is renamed on every re-export, so pinning a name
- * would break on the next one).
+ * Tab names moved to `lib/tabs.ts` on 28 Sep 2026 and are hard-coded there.
  */
 
 /** Pull the spreadsheet ID out of a full Sheets URL, or pass an ID through. */
@@ -23,28 +21,16 @@ export function directorySheetId(): string {
   return sheetIdFrom(process.env.DIRECTORY_SHEET_ID);
 }
 
-/**
- * Blank ⇒ read the spreadsheet's only tab.
+/*
+ * Tab names now live in `lib/tabs.ts`, hard-coded with an env override — see
+ * the long note there for why. These two re-exports keep the directory modules
+ * importing from their own config, so nothing outside had to change.
  *
- * Once companion tabs exist this must be SET: `firstTabTitle` refuses a
- * multi-tab workbook rather than guessing, because dragging a tab left in
- * Sheets would otherwise repoint the directory at the wrong data and the page
- * would still render.
+ * The relations tab stays OPTIONAL in behavior: absent or unreadable ⇒ the
+ * directory is members only, exactly as before. A relations tab is an ADDITION;
+ * a problem reading it must never take down the member list.
  */
-export function directoryTab(): string {
-  return (process.env.DIRECTORY_TAB ?? "").trim();
-}
-
-/**
- * The tab holding `profilerelations` — the profile-to-profile links.
- *
- * Optional by design. Absent or unreadable ⇒ the directory is members only,
- * exactly as before. A relations tab is an ADDITION; a problem reading it must
- * never take down the member list, which is the thing people came for.
- */
-export function relationsTab(): string {
-  return (process.env.DIRECTORY_RELATIONS_TAB ?? "").trim();
-}
+export { profilesTab as directoryTab, relationsTab } from "@/lib/tabs";
 
 /** Human-facing link to the source sheet, or null when unconfigured. */
 export function directorySheetUrl(): string | null {

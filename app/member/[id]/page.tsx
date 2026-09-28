@@ -206,7 +206,9 @@ function Details({ member: m }: { member: Member }) {
    * that isn't true. Gated on `isMember`, not on whether the cell has a value.
    */
   if (m.isMember) {
-    add("Member since", monthYearLabel(m.memberSince), !!monthYearLabel(m.memberSince));
+    // "Member since" was here. Removed 28 Sep 2026 at ITA's request — join
+    // dates are not displayed anywhere (card, this page, or the CSV export).
+    // `memberSince` is still parsed, so restoring it is one `add` call.
     add("Membership level", m.membershipLevel, !!m.membershipLevel);
     add("Profile status", m.status, !!m.status);
   } else {
@@ -224,6 +226,21 @@ function Details({ member: m }: { member: Member }) {
     add("Events attended (past 12 months)", m.eventCount12mo, !!m.eventCount12mo);
   } else {
     addPending("Event history", PENDING_NOTE.events);
+  }
+
+  /*
+   * The organization's public listing category. ORGANIZATIONS ONLY — gated on
+   * `isOrganization`, not on having a value, because a listing is a fact about
+   * a company and no individual carries one (0 of 2,362 in the live export).
+   *
+   * Sub Category and Description were asked for alongside this and BUILT, then
+   * removed on 28 Sep once the data was measured: sub-category was set on 1 of
+   * 196 member orgs (to "Platinum", a level rather than a category) and
+   * description on none at all. See the note in `parse.ts` — restoring them is
+   * a few lines if ITA ever populates the listings.
+   */
+  if (m.isOrganization) {
+    add("Primary Category", m.listingCategory, !!m.listingCategory);
   }
 
   add("Listing level", m.listingLevel, !!m.listingLevel);

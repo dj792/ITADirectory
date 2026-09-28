@@ -672,6 +672,47 @@ if (isProfileView) {
     isPending(members, (m) => m.lastEvent) &&
     !isPending(members, (m) => m.name));
 
+  /*
+   * ── The organization listing CATEGORY (28 Sep 2026) ───────────────────
+   *
+   * Shown on the member page for organizations only. The page gates on
+   * `isOrganization` rather than on having a value, so the assertion that
+   * matters is that the data agrees: a listing is a fact about a company.
+   *
+   * The coverage check is deliberately LOOSE — it pins the shape, not today's
+   * number, so ITA filling listings in doesn't fail the build. What it catches
+   * is the column being renamed or dropped, or listing data on people.
+   *
+   * The sub-category and description columns are NOT read (see `parse.ts`), so
+   * there is nothing to assert about them.
+   */
+  {
+    const orgs = members.filter((m) => m.isOrganization);
+    const people = members.filter((m) => !m.isOrganization);
+
+    check("no INDIVIDUAL carries a listing category",
+      people.every((m) => !m.listingCategory),
+      `${people.filter((m) => m.listingCategory).length} individuals have one`);
+
+    check("the listing category column is still being read",
+      orgs.some((m) => !!m.listingCategory),
+      `${orgs.filter((m) => m.listingCategory).length} of ${orgs.length} orgs`);
+
+    /*
+     * Primary Category RESTATES the membership level — in every org carrying
+     * both, the level starts with the category ("Consultants and Resellers" →
+     * "Consultants and Resellers (CR)"). ITA asked for the field, so it is
+     * shown; this records that it is not new information. If it ever stops
+     * being true the field has gained independent meaning, which is worth
+     * noticing rather than inheriting invisibly.
+     */
+    const both = orgs.filter((m) => m.listingCategory && m.membershipLevel);
+    check("Primary Category still just restates Membership level",
+      both.every((m) => m.membershipLevel.startsWith(m.listingCategory)),
+      `${both.filter((m) => !m.membershipLevel.startsWith(m.listingCategory)).length}` +
+      ` of ${both.length} now differ — the field may have gained its own meaning`);
+  }
+
   /* ── Nothing sensitive reached the fixture ────────────────────────────── */
   for (const col of ["Profile_SSN", "Profile_TaxID", "Profile_Password", "Profile_BirthDate"]) {
     check(`${col} is not in the local fixture`, !grid.headers.includes(col));

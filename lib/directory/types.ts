@@ -105,6 +105,24 @@ export type Member = {
   zip: string;
   listingLevel: string;
   /**
+   * The organization's public listing category
+   * (`Listing_PrimaryListingCategory`). Shown on the member page for
+   * ORGANIZATIONS only; no individual carries one (0 of 2,362 in the live
+   * export). Set on 126 of the 196 published member organizations.
+   *
+   * **It RESTATES the membership level rather than adding to it**: 6 distinct
+   * values, and in all 121 organizations carrying both, the level starts with
+   * the category ("Consultants and Resellers" → "Consultants and Resellers
+   * (CR)") — zero genuine differences. Shown because ITA asked for it, but it
+   * is not new information, and `parse.check.ts` asserts the relationship
+   * holds. If that check ever fails the field has gained its own meaning, and
+   * whether to show both rows is worth revisiting.
+   *
+   * The sibling sub-category and description columns are deliberately NOT read
+   * — see the note in `parse.ts`.
+   */
+  listingCategory: string;
+  /**
    * The four fields the free-text box searches — Profile Name, Related
    * Organization, Main Profile Email and Report Name — lowercased and joined.
    *
