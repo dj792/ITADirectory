@@ -274,6 +274,9 @@ export function parseProfiles(tab: SheetTab): {
       relatedOrgId: "",
       relatedOrgName: "",
       titleAtOrg: "",
+      // Set by `admit.ts` for people admitted through a member firm — the
+      // parser reads one row at a time and has no view of the relations table.
+      orgMembershipLevel: "",
       listingLevel: cell(row, idx.listingLevel),
     };
 

@@ -15,6 +15,7 @@ import { parseCsv } from "./csv";
 import { parseProfiles } from "./parse";
 import { parseRelations, linksByOrg } from "./relations";
 import { admit } from "./admit";
+import { applyFilters, EMPTY_FILTERS } from "./search";
 
 const PROFILES = path.join(process.cwd(), "data", "ProfileView.csv");
 const RELATIONS = path.join(process.cwd(), "data", "ProfileRelations.csv");
@@ -201,6 +202,64 @@ check("a former employee of a member is not admitted through that link", (() => 
 // ── Former is never current, even if the allow-list is edited ─────────────
 check("nothing beginning 'Former' is ever current",
   relations.every((r) => !/^\s*former/i.test(r.relationType) || !r.current));
+
+/*
+ * ── LEVEL + INDIVIDUALS (28 Sep 2026) ─────────────────────────────────────
+ *
+ * Filtering by membership level with "Individuals" selected used to return
+ * nothing, because staff carry no level of their own — a question that looks
+ * reasonable and always answers zero. It now matches the level of the firm that
+ * admitted them. These pin BOTH halves: that the filter finds them, and that
+ * the borrowed level never reaches a card.
+ */
+{
+  const staff = result.members.filter((m) => !m.isMember && !m.isOrganization);
+
+  check("staff still carry NO membership level of their own",
+    staff.every((m) => m.membershipLevel === ""),
+    `${staff.filter((m) => m.membershipLevel).length} have one`);
+
+  check("staff DO carry their firm's level for filtering",
+    staff.filter((m) => m.orgMembershipLevel).length > staff.length * 0.9,
+    `${staff.filter((m) => m.orgMembershipLevel).length} of ${staff.length}`);
+
+  // The borrowed level must be the ADMITTING firm's, not just any level.
+  const byId = new Map(result.members.map((m) => [m.id, m]));
+  check("the borrowed level is the admitting firm's own level",
+    staff.every((m) =>
+      !m.orgMembershipLevel ||
+      byId.get(m.relatedOrgId)?.membershipLevel === m.orgMembershipLevel));
+
+  // The whole point: the combination that used to return zero.
+  const levels = [...new Set(
+    result.members.filter((m) => m.isMember).map((m) => m.membershipLevel)
+  )].filter(Boolean);
+  const level = levels[0]!;
+  const hits = applyFilters(result.members, {
+    ...EMPTY_FILTERS, kind: "individual", membershipLevels: [level],
+  });
+  check(`"${level}" + Individuals now returns people`, hits.length > 0,
+    `${hits.length} found`);
+  check("…and every one of them works at a firm holding that level",
+    hits.every((m) =>
+      m.membershipLevel === level ||
+      byId.get(m.relatedOrgId)?.membershipLevel === level));
+
+  // A record with no level must not fall into EVERY filter — the failure mode
+  // if a blank were ever allowed to match.
+  check("a blank level matches nothing",
+    applyFilters(
+      result.members.filter((m) => !m.membershipLevel && !m.orgMembershipLevel),
+      { ...EMPTY_FILTERS, membershipLevels: [level] }
+    ).length === 0);
+
+  // Organizations are untouched by any of this.
+  const orgHits = applyFilters(result.members, {
+    ...EMPTY_FILTERS, kind: "org", membershipLevels: [level],
+  });
+  check("organizations still match on their OWN level only",
+    orgHits.every((m) => m.membershipLevel === level), `${orgHits.length} orgs`);
+}
 
 console.log(failures === 0
   ? "\nAll relation checks passed.\n"

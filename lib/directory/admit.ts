@@ -71,6 +71,22 @@ export function admit(profiles: Member[], rosters: Map<string, Link[]>): AdmitRe
         relatedOrgId: orgId,
         relatedOrgName: org?.name ?? "",
         titleAtOrg: link.title,
+        /*
+         * The level of the firm that admitted them — for FILTERING ONLY.
+         *
+         * Staff carry no membership level of their own (0 of 1,738 in the live
+         * export; the level is the firm's). So "Gold + Individuals" used to be
+         * a question that always answered zero, which reads as a broken filter
+         * rather than as a fact about the data. DJ's call, 28 Sep: that
+         * combination should return the people who WORK AT Gold member firms.
+         *
+         * A SEPARATE FIELD, never written into `membershipLevel`. Copying it
+         * there would make the result cards badge an employee "Technology
+         * Partner - Gold" — a factual error about that person's relationship to
+         * ITA, and exactly what `isMember` exists to prevent. Filter on it;
+         * never display it as if it were theirs.
+         */
+        orgMembershipLevel: org?.membershipLevel ?? "",
       });
     }
   }

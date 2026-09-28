@@ -81,6 +81,24 @@ export type Member = {
   relatedOrgId: string;
   relatedOrgName: string;
   titleAtOrg: string;
+  /**
+   * The membership level of the firm that admitted this person — **a FILTER
+   * KEY, not a display value.** Empty for members themselves and for anyone
+   * admitted on their own account.
+   *
+   * It exists because staff carry no level of their own (0 of 1,738 in the live
+   * export — a level belongs to the firm), so filtering by level with
+   * "Individuals" selected returned nothing, which reads as a broken control
+   * rather than as a fact about the data. With this, "Gold + Individuals"
+   * returns the people who work at Gold member firms, which is what the
+   * combination is asking.
+   *
+   * **Never render it as this person's level, and never copy it into
+   * `membershipLevel`.** Doing either badges an employee as an ITA member,
+   * which is the factual error `isMember` exists to prevent. `search.ts` reads
+   * it; the card and the member page deliberately do not.
+   */
+  orgMembershipLevel: string;
   website: string;
   city: string;
   state: string;

@@ -114,12 +114,34 @@ export function hasActiveSearch(f: Filters): boolean {
  * yet" and "searched, no matches" need different words on screen and are the
  * same empty array here.
  */
+/**
+ * Does this record answer a membership-level filter?
+ *
+ * A MEMBER answers with their own level. A person admitted through a member
+ * firm answers with THAT FIRM'S level (`orgMembershipLevel`, set in `admit.ts`)
+ * — because staff carry no level of their own, so without this, "Gold" plus
+ * "Individuals" returned nothing at all: a question that looks reasonable and
+ * always answers zero, which reads as a broken filter rather than as a fact
+ * about the data. It now means "people who work at Gold member firms".
+ *
+ * Both fields are checked rather than one-or-the-other, so an individual who is
+ * ALSO a member in their own right (7 of them, e.g. an MIT membership) is found
+ * by their own level AND by their firm's.
+ *
+ * A blank never matches: the facets drop empty values, so every selected level
+ * is a non-empty string and `includes("")` is false. That matters — a record
+ * with no level must not fall into every filter.
+ */
+function matchesLevel(m: Member, levels: string[]): boolean {
+  if (levels.length === 0) return true;
+  return levels.includes(m.membershipLevel) || levels.includes(m.orgMembershipLevel);
+}
+
 export function applyFilters(members: Member[], f: Filters): Member[] {
   return members.filter(
     (m) =>
       // OR within the field, AND across fields — see `Filters.membershipLevels`.
-      (f.membershipLevels.length === 0 ||
-        f.membershipLevels.includes(m.membershipLevel)) &&
+      matchesLevel(m, f.membershipLevels) &&
       (!f.status || m.status === f.status) &&
       (!f.lastEvent || m.lastEvent === f.lastEvent) &&
       (!f.kind || (f.kind === "org") === m.isOrganization) &&

@@ -97,25 +97,50 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
    * now: the SQL view that replaced the report export has no event columns.
    */
   const eventsPending = eventFilterPending(directory);
+
+  /*
+   * MEMBERSHIP LEVEL IS THE FIRST FIELD ON THE PANEL, above the search box —
+   * DJ's call, 28 Sep: browsing a level is how ITA's members actually use this,
+   * where the text box answers "find this one person I already know". The
+   * primary path should be the first thing under the heading, not the third.
+   *
+   * It is deliberately NOT in the `dropdowns` array below, even though it is a
+   * `FilterSelect` like the others. Those come and go with the data and share a
+   * grid; this one has a fixed place in the reading order, and folding it back
+   * in to save a few lines would silently restore the old order. Same reason
+   * the segmented control sits on its own.
+   *
+   * Still gated on having values: a level filter with nothing to choose is a
+   * dead control, and it would now be the dead control at the TOP of the page.
+   */
+  const levelOptions = directory.facets.membershipLevel;
+
   /*
    * Every entry deals in `string[]`, single-valued filters included — one shape
    * so FilterSelect needs no second code path. The single-valued ones adapt at
    * the boundary (`vs[0] ?? ""`), which keeps `Filters` honest: a status is one
    * value by nature, a set of levels is not.
    */
-  const dropdowns = [
-    {
-      label: "Membership level",
-      values: filters.membershipLevels,
-      options: directory.facets.membershipLevel,
-      multiple: true,
-      onChange: (vs: string[]) => set({ membershipLevels: vs }),
-    },
+  /*
+   * Typed explicitly rather than inferred. Membership level used to be the only
+   * entry carrying `multiple`, so when it moved out, inference narrowed the
+   * array to single-select and `d.multiple` in the render stopped compiling.
+   * The annotation keeps the slot open: a future multi-select filter is one
+   * entry here, not a second code path.
+   */
+  const dropdowns: {
+    label: string;
+    values: string[];
+    options: string[];
+    onChange: (vs: string[]) => void;
+    multiple?: boolean;
+    pending?: string;
+  }[] = [
     // Profile status is no longer offered as a filter — its values largely
     // restate Membership Level ("Technology Partner" vs "Technology Partner -
     // Gold"), so two dropdowns asked nearly the same question. The field is
     // still parsed and still shown on a member's card and page; only the filter
-    // is gone. `?status=` in a URL is still honoured, and restoring the control
+    // is gone. `?status=` in a URL is still honored, and restoring the control
     // is one entry in this array.
     {
       label: "Last event signed up for",
@@ -130,6 +155,23 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
     <div className="space-y-5">
       {/* ── Search + filters ─────────────────────────────────────────────── */}
       <div className="rounded-xl border border-hair bg-panel p-4 shadow-sm sm:p-5">
+        {/*
+          FIRST FIELD: membership level. See `levelOptions` above for why it
+          lives here rather than in the dropdown grid — moving it back would
+          undo a deliberate ordering decision.
+        */}
+        {levelOptions.length > 0 && (
+          <div className="mb-3">
+            <FilterSelect
+              label="Membership level"
+              values={filters.membershipLevels}
+              options={levelOptions}
+              onChange={(vs) => set({ membershipLevels: vs })}
+              multiple
+            />
+          </div>
+        )}
+
         <label htmlFor="q" className="sr-only">
           Search members
         </label>
@@ -222,15 +264,24 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
         <EmptyState
           heading={typedTooShort ? "Keep typing…" : "Search the ITA membership"}
           body={
+            /*
+             * The idle prompt LEADS WITH MEMBERSHIP LEVEL, mirroring the panel:
+             * the first thing offered on screen should be the first thing named
+             * here, or the copy is quietly pointing somewhere else. Falls back
+             * to the text-first wording when there are no levels to choose, so
+             * it never invites someone to use a control that isn't rendered.
+             */
             typedTooShort
-              ? `Enter at least ${MIN_QUERY_LENGTH} characters, or pick a filter above.`
+              ? `Enter at least ${MIN_QUERY_LENGTH} characters, or pick a membership level above.`
               : filters.kind
                 ? // They've narrowed to a type and nothing appeared. Say why, or
                   // it reads as a broken control rather than a deliberate gate.
                   `Showing ${
                     filters.kind === "org" ? "organizations" : "individuals"
-                  } only — now search by name, company, or email, or pick a filter above.`
-                : "Type a name, company, or email address — or choose a filter above — to see members."
+                  } only — now choose a membership level above, or search by name, company, or email.`
+                : levelOptions.length > 0
+                  ? "Choose a membership level above, or type a name, company, or email address."
+                  : "Type a name, company, or email address — or choose a filter above — to see members."
           }
         />
       ) : results.length === 0 ? (
