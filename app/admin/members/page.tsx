@@ -20,7 +20,7 @@ export default async function AdminMembersPage() {
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
-      <h1 className="text-2xl">Member profiles</h1>
+      <h1 className="text-2xl">Member Search</h1>
       <p className="mt-1 text-[14px] text-sub">
         Search the directory, then update a member’s custom fields on their
         behalf. Same search the members themselves use.

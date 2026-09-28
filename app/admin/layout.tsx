@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { cookies } from "next/headers";
 import BrandMark from "@/components/BrandMark";
 import SiteFooter from "@/components/SiteFooter";
 import { redirect } from "next/navigation";
 import { ADMIN_COOKIE, adminCookieValid } from "@/lib/admin-gate";
-import { signOutOfAdmin } from "./actions";
+import AdminNav from "./AdminNav";
 
 /**
  * THE GATE FOR EVERY ADMIN PAGE.
@@ -51,30 +50,7 @@ export default async function AdminLayout({
 
   return (
     <Shell>
-      <nav className="border-b border-hair bg-panel2">
-        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-4 px-4 py-2 text-[13px] sm:px-6">
-          <Link href="/admin" className="text-accent hover:underline">
-            Fields
-          </Link>
-          <Link href="/admin/members" className="text-accent hover:underline">
-            Members
-          </Link>
-          <Link href="/admin/options" className="text-accent hover:underline">
-            Dropdown lists
-          </Link>
-          <Link href="/admin/forms" className="text-accent hover:underline">
-            Preview
-          </Link>
-          <Link href="/" className="text-accent hover:underline">
-            Directory
-          </Link>
-          <form action={signOutOfAdmin} className="ml-auto">
-            <button type="submit" className="text-sub hover:text-fg">
-              Sign out
-            </button>
-          </form>
-        </div>
-      </nav>
+      <AdminNav />
       {children}
     </Shell>
   );
