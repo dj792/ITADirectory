@@ -51,7 +51,7 @@ export default async function FormPreviewPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const config = await loadFormConfig();
+  const config = await loadFormConfig({ fresh: true });
   const one = (k: string) => {
     const v = params[k];
     return (Array.isArray(v) ? v[0] : v) ?? "";

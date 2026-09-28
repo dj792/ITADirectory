@@ -46,7 +46,7 @@ export default async function AdminFieldsPage({
     const v = params[k];
     return (Array.isArray(v) ? v[0] : v) ?? "";
   };
-  const config = await loadFormConfig();
+  const config = await loadFormConfig({ fresh: true });
 
   const order = ["TP", "CR", "CAS", "ITL", "DEFAULT"];
   const types = [...config.forms.keys()].sort(
@@ -164,6 +164,17 @@ export default async function AdminFieldsPage({
         optionSets={optionSets}
         groups={groups}
       />
+
+      {/*
+        ONE datalist for the whole page. Two elements sharing an id is invalid
+        HTML and browsers bind only the first, so the section suggestions
+        silently stopped working in whichever form happened to render second.
+      */}
+      <datalist id="admin-groups">
+        {groups.map((g) => (
+          <option key={g} value={g} />
+        ))}
+      </datalist>
     </main>
   );
 }
@@ -362,12 +373,6 @@ function EditForm({
         <TextInput name="helpText" label="Help text" defaultValue={f.helpText} />
       </div>
 
-      <datalist id="admin-groups">
-        {groups.map((g) => (
-          <option key={g} value={g} />
-        ))}
-      </datalist>
-
       <div className="mt-3 flex items-center gap-3">
         <button
           type="submit"
@@ -465,12 +470,6 @@ function NewFieldForm({
             ))}
           </div>
         </fieldset>
-
-        <datalist id="admin-groups">
-          {groups.map((g) => (
-            <option key={g} value={g} />
-          ))}
-        </datalist>
 
         <button
           type="submit"

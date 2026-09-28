@@ -37,7 +37,7 @@ export default async function AdminOptionsPage({
     const v = params[k];
     return (Array.isArray(v) ? v[0] : v) ?? "";
   };
-  const config = await loadFormConfig();
+  const config = await loadFormConfig({ fresh: true });
   const back = "/admin/options";
 
   // Which fields use each list — the blast radius, shown before the edit.

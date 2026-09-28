@@ -7,7 +7,7 @@
  * loudly; a wrong sort-order calculation silently reorders someone's form.
  */
 import crypto from "crypto";
-import { colLetter, headerIndex, rowFromValues } from "@/lib/sheets-core";
+import { colLetter, headerIndex, quoteTab, rowFromValues } from "@/lib/sheets-core";
 import { adminCookieValid, adminKeyCorrect, adminToken } from "@/lib/admin-gate";
 import { adminCookieValidEdge, adminTokenEdge } from "@/lib/admin-gate-edge";
 
@@ -32,6 +32,20 @@ check("column AZ is index 51", colLetter(51) === "AZ", colLetter(51));
 check("column BA is index 52", colLetter(52) === "BA", colLetter(52));
 // The Profiles tab is 172 columns wide, so this range is real, not theoretical.
 check("column FP is index 171", colLetter(171) === "FP", colLetter(171));
+
+/* ── Tab names in A1 ranges ──────────────────────────────────────────── */
+/*
+ * On a READ a bad range fails; on a WRITE it can land somewhere else. None of
+ * today's tabs need quoting, which is exactly why this is easy to get wrong
+ * later.
+ */
+check("a plain tab name is left alone", quoteTab("FieldsbyType") === "FieldsbyType");
+check("a tab name with a space is quoted",
+  quoteTab("Field Options") === "'Field Options'", quoteTab("Field Options"));
+check("a tab name with punctuation is quoted",
+  quoteTab("Fields (old)") === "'Fields (old)'", quoteTab("Fields (old)"));
+check("an internal apostrophe is doubled",
+  quoteTab("DJ's tab") === "'DJ''s tab'", quoteTab("DJ's tab"));
 
 /* ── Row building respects the tab's own column order ─────────────────── */
 {

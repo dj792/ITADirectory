@@ -8,6 +8,7 @@ import {
   listTabs,
   resolveTab,
   resolvePrivateKey,
+  canWrite,
 } from "@/lib/sheets-core";
 import {
   directorySheetId,
@@ -432,6 +433,36 @@ async function probe(): Promise<Row[]> {
   } catch (err) {
     rows.push({ label: "Custom field config", ok: false, detail: msg(err) });
   }
+
+  /*
+   * ── Stage 7: CAN WE WRITE? ───────────────────────────────────────────────
+   *
+   * The admin screens save by writing to the configuration tabs, and the two
+   * ways that fails look identical from outside: a read-only token scope and a
+   * Viewer-level share both come back 403, both only when someone presses Save.
+   * `canWrite` asks the question with an empty batch update — a real request
+   * that changes nothing — so the answer is on this page before anyone types a
+   * form rather than after.
+   */
+  try {
+    const write = await canWrite(token, resolvedId);
+    rows.push({
+      label: "Sheet is WRITABLE",
+      ok: write.ok,
+      detail: write.detail,
+    });
+  } catch (err) {
+    rows.push({ label: "Sheet is WRITABLE", ok: false, detail: msg(err) });
+  }
+
+  rows.push({
+    label: "Admin access key",
+    ok: (process.env.ADMIN_ACCESS_KEY ?? "").trim().length > 0,
+    detail:
+      (process.env.ADMIN_ACCESS_KEY ?? "").trim().length > 0
+        ? `set · ${(process.env.ADMIN_ACCESS_KEY ?? "").trim().length} characters — /admin is reachable with it`
+        : "NOT SET — /admin is closed to everyone. Set ADMIN_ACCESS_KEY and redeploy.",
+  });
 
   rows.push({
     label: "Source sheet",

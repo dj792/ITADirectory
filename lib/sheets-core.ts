@@ -419,6 +419,21 @@ export async function firstTabTitle(token: string, spreadsheetId: string): Promi
  *  4. **RESOLVE COLUMNS BY HEADER NAME** on the way in, exactly as reads do.
  */
 
+/**
+ * A tab name as A1 notation needs it.
+ *
+ * A1 ranges are `Tab!A1`, and a tab whose name contains a space, a quote or
+ * punctuation has to be single-quoted with internal quotes doubled — otherwise
+ * the range is parsed as something else entirely, which on a WRITE means
+ * landing in the wrong place rather than failing. None of today's tabs need it
+ * (`FieldsbyType`, `Profiles`); the one someone renames next year might, and
+ * this is the kind of bug that is invisible until it has already overwritten
+ * something.
+ */
+export function quoteTab(tab: string): string {
+  return /^[A-Za-z0-9_]+$/.test(tab) ? tab : `'${tab.replace(/'/g, "''")}'`;
+}
+
 /** 0-based column index → A1 letter. 0 → "A", 26 → "AA". */
 export function colLetter(index: number): string {
   let n = index + 1;
@@ -469,7 +484,7 @@ export async function writeCells(
       );
     }
     const a1 = `${colLetter(col)}${e.rowIndex + 2}`;
-    return { range: `${tab}!${a1}`, values: [[e.value]] };
+    return { range: `${quoteTab(tab)}!${a1}`, values: [[e.value]] };
   });
 
   const url =
@@ -504,7 +519,7 @@ export async function appendRows(
   if (rows.length === 0) return;
   const url =
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}` +
-    `/values/${encodeURIComponent(`${tab}!A1`)}:append` +
+    `/values/${encodeURIComponent(`${quoteTab(tab)}!A1`)}:append` +
     `?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
   const resp = await sheetsFetch(url, {
     method: "POST",
@@ -550,4 +565,55 @@ async function writeError(resp: Response, tab: string): Promise<string> {
   }
   if (resp.status === 429) return quotaMessage(tab);
   return `Could not write to "${tab}" (${resp.status}): ${body.slice(0, 300)}`;
+}
+
+/**
+ * CAN WE WRITE? — a probe that proves permission without changing anything.
+ *
+ * Same idea as the Aligned KPIs `secret-check` route: ask the API to do the
+ * thing, in a form where success is harmless, and read the answer off the
+ * status code. A `values:batchUpdate` carrying an EMPTY data array is a valid
+ * request that updates zero cells — so a 200 proves the token's scope AND the
+ * service account's Editor access on this specific workbook, while a 403 proves
+ * one of them is missing. Nothing is written either way, so it is safe to run
+ * on every page load of /diagnostics.
+ *
+ * This matters because the two halves fail identically from the outside: a
+ * read-only SCOPE and a Viewer-level SHARE both produce 403 on the first real
+ * save, after someone has typed a form and pressed the button. Better to answer
+ * it before they do.
+ */
+export async function canWrite(
+  token: string,
+  spreadsheetId: string
+): Promise<{ ok: boolean; status: number; detail: string }> {
+  const url =
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`;
+  const resp = await sheetsFetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ valueInputOption: "RAW", data: [] }),
+  });
+
+  if (resp.ok) {
+    return { ok: true, status: resp.status, detail: "the sheet is writable" };
+  }
+  if (resp.status === 403) {
+    return {
+      ok: false,
+      status: 403,
+      detail:
+        `Google refused (403). Share the workbook with ` +
+        `${process.env.GOOGLE_SA_EMAIL ?? "the service account"} as an EDITOR — ` +
+        `it can read but not write, so admin saves will fail.`,
+    };
+  }
+  return {
+    ok: false,
+    status: resp.status,
+    detail: `${resp.status}: ${(await resp.text()).slice(0, 200)}`,
+  };
 }

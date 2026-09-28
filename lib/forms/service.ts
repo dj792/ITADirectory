@@ -140,8 +140,23 @@ async function readOrEmpty(
   }
 }
 
-export async function loadFormConfig(): Promise<LoadedFormConfig> {
-  if (cache && Date.now() - cache.at < TTL_MS) return cache.data;
+/**
+ * @param fresh Skip the cache. **The admin screens always pass this.**
+ *
+ * The cache lives in one server instance's memory, and Vercel runs several. So
+ * a save invalidates the cache on the instance that handled the POST, and the
+ * redirect that follows can land on a DIFFERENT instance still holding a
+ * five-minute-old copy — the edit is in the sheet, the screen shows the old
+ * value, and the natural response is to save again. Admin traffic is a handful
+ * of requests from a handful of people, so paying four Google reads for a
+ * correct answer is the right trade there; the member-facing directory keeps
+ * the cache, where the volume is and where a few minutes of staleness in a form
+ * definition costs nothing.
+ */
+export async function loadFormConfig(
+  { fresh = false }: { fresh?: boolean } = {}
+): Promise<LoadedFormConfig> {
+  if (!fresh && cache && Date.now() - cache.at < TTL_MS) return cache.data;
 
   const sheetId = directorySheetId();
   if (useMock() || !sheetId) {
