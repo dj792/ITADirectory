@@ -16,6 +16,7 @@ import {
   directorySheetUrl,
 } from "@/lib/directory/config";
 import { parseDirectory } from "@/lib/directory/parse";
+import { loadFormConfig, loadFieldValues } from "@/lib/forms/service";
 import { testingModeEnabled } from "@/lib/testing-mode";
 
 /**
@@ -337,6 +338,87 @@ async function probe(): Promise<Row[]> {
     });
   } catch (err) {
     return [...rows, { label: "Rows parse into members", ok: false, detail: msg(err) }];
+  }
+
+  /*
+   * ── Stage 6: the CUSTOM FIELD configuration ──────────────────────────────
+   *
+   * Four tabs ITA maintains by hand, so the useful report is not "did it read"
+   * but "did it read what they meant": row counts per tab, what those became,
+   * and every problem the parser found. A field pointing at a missing option
+   * set renders as an empty dropdown and looks like our bug — printed here it
+   * is a two-second fix in a spreadsheet.
+   *
+   * Reads via the real service, so this proves the path the app uses, not a
+   * second one that happens to work.
+   */
+  try {
+    const config = await loadFormConfig();
+    const counts =
+      `${config.fields.size} fields · ${config.forms.size} forms · ` +
+      `${config.options.size} option sets · ${config.levels.length} levels mapped`;
+
+    if (config.source === "sheet" && config.fields.size > 0) {
+      rows.push({ label: "Custom field config", ok: true, detail: counts });
+    } else if (config.source === "sheet") {
+      rows.push({
+        label: "Custom field config",
+        ok: false,
+        detail:
+          "the config tabs were read but produced no fields — check that the " +
+          "header row matches (FieldID, Label, DataType, …) and that Active " +
+          "isn't set to FALSE",
+      });
+    } else if (config.source === "fixture") {
+      rows.push({
+        label: "Custom field config",
+        ok: null,
+        detail: `read from the LOCAL SEED, not the sheet · ${counts}`,
+      });
+    } else {
+      rows.push({
+        label: "Custom field config",
+        ok: false,
+        detail: config.error ?? "not loaded",
+      });
+    }
+
+    // Per-form field counts: the fastest way to see a whole form went missing.
+    if (config.forms.size > 0) {
+      rows.push({
+        label: "Fields per form",
+        ok: null,
+        detail: [...config.forms.entries()]
+          .map(([t, f]) => `${t}: ${f.fields.length}`)
+          .join(" · "),
+      });
+    }
+
+    rows.push({
+      label: "Config problems",
+      ok: config.problems.length === 0,
+      detail:
+        config.problems.length === 0
+          ? "none — every row parsed cleanly"
+          : config.problems.slice(0, 8).join(" | ") +
+            (config.problems.length > 8
+              ? ` | …and ${config.problems.length - 8} more`
+              : ""),
+    });
+
+    // The answers tab. Empty is the expected state until editing ships.
+    const values = await loadFieldValues();
+    rows.push({
+      label: "Stored answers",
+      ok: null,
+      detail:
+        values.length === 0
+          ? "none yet — expected until profile editing is switched on"
+          : `${values.length} values across ` +
+            `${new Set(values.map((v) => v.profileId)).size} profiles`,
+    });
+  } catch (err) {
+    rows.push({ label: "Custom field config", ok: false, detail: msg(err) });
   }
 
   rows.push({

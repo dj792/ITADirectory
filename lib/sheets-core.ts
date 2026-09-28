@@ -222,7 +222,33 @@ export async function readTab(
  * looks like a data problem.
  */
 /** Every tab title in the workbook, in tab order. */
+/**
+ * The workbook's tab list, cached.
+ *
+ * WHY THIS CACHE EXISTS. `resolveTab` calls `listTabs` to validate a name, and
+ * every tab the app reads goes through `resolveTab` — so the seven tabs now in
+ * play (Profiles, ProfileRelations and the five form tabs) cost a metadata
+ * request EACH, on top of the reads, every time. `readTab`'s cache hid the read
+ * cost but not this one, so a warm page still spent seven calls proving the
+ * tabs exist. On a 60-per-minute budget shared with the Aligned KPIs app, that
+ * is the difference between comfortable and a rate limit that reads like a data
+ * problem.
+ *
+ * A tab list changes when a person renames or adds a tab — minutes apart at
+ * worst — so it caches on the same 5-minute TTL as a tab's contents.
+ */
+const metaCache = new Map<string, { at: number; data: string[] }>();
+
+/** Forget the tab list — call after adding a tab, alongside `invalidateTab`. */
+export function invalidateTabList(spreadsheetId?: string): void {
+  if (spreadsheetId) metaCache.delete(spreadsheetId);
+  else metaCache.clear();
+}
+
 export async function listTabs(token: string, spreadsheetId: string): Promise<string[]> {
+  const hit = metaCache.get(spreadsheetId);
+  if (hit && Date.now() - hit.at < TAB_TTL_MS) return hit.data;
+
   const url =
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}` +
     `?fields=sheets.properties(title,index)`;
@@ -231,11 +257,13 @@ export async function listTabs(token: string, spreadsheetId: string): Promise<st
   const data = (await resp.json()) as {
     sheets?: { properties?: { title?: string; index?: number } }[];
   };
-  return (data.sheets ?? [])
+  const titles = (data.sheets ?? [])
     .map((s) => s.properties)
     .filter((p): p is { title: string; index: number } => !!p?.title)
     .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
     .map((p) => p.title);
+  metaCache.set(spreadsheetId, { at: Date.now(), data: titles });
+  return titles;
 }
 
 /**
