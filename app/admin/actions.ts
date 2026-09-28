@@ -2,7 +2,13 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { ADMIN_COOKIE, adminKeyCorrect, adminToken } from "@/lib/admin-gate";
+import {
+  ADMIN_COOKIE,
+  ADMIN_HOME,
+  adminKeyCorrect,
+  adminToken,
+  safeNext,
+} from "@/lib/admin-gate";
 
 /**
  * Sign in to the admin area, and out again.
@@ -16,11 +22,16 @@ import { ADMIN_COOKIE, adminKeyCorrect, adminToken } from "@/lib/admin-gate";
  */
 export async function signInToAdmin(formData: FormData) {
   const key = String(formData.get("key") ?? "");
+  const next = safeNext(String(formData.get("next") ?? ""));
+
   if (!adminKeyCorrect(key)) {
     // No detail about WHY. "Wrong password" and "no password is set" are
-    // different facts and neither is a stranger's business.
-    redirect("/admin-login?error=1");
+    // different facts and neither is a stranger's business. The attempted
+    // destination is carried through so a failed try doesn't lose it.
+    const back = next === ADMIN_HOME ? "" : `&next=${encodeURIComponent(next)}`;
+    redirect(`/admin-login?error=1${back}`);
   }
+
   const jar = await cookies();
   jar.set(ADMIN_COOKIE, adminToken(), {
     httpOnly: true,
@@ -28,7 +39,7 @@ export async function signInToAdmin(formData: FormData) {
     secure: process.env.NODE_ENV === "production",
     path: "/",
   });
-  redirect("/admin");
+  redirect(next);
 }
 
 export async function signOutOfAdmin() {

@@ -46,7 +46,7 @@ const FORM_SETUP: Item[] = [
   // lights up on every admin page, which is worse than marking nothing.
   { href: "/admin", label: "Form Fields", match: (p) => p === "/admin" },
   { href: "/admin/options", label: "Dropdown Lists" },
-  { href: "/admin/forms", label: "Preview" },
+  { href: "/admin/forms", label: "Form Preview" },
 ];
 
 export default function AdminNav() {
@@ -68,15 +68,25 @@ export default function AdminNav() {
         ))}
 
         <span className="ml-auto flex items-stretch gap-x-1">
+          {/*
+            NEW TAB, like every link that leaves the admin area. Following it in
+            place strands you: the members' directory has no way back, and the
+            browser's Back button walks you through admin history you thought
+            you were still in. The ↗ and the screen-reader note say so before
+            the click rather than after.
+          */}
           <a
             href="/"
+            target="_blank"
+            rel="noreferrer noopener"
             className="flex items-center gap-1 border-b-2 border-transparent px-3 py-2.5 text-[13px] text-sub hover:text-accent"
-            title="Open the directory members see"
+            title="Opens the directory members see, in a new tab"
           >
             Directory
             <span aria-hidden="true" className="text-[11px]">
               ↗
             </span>
+            <span className="sr-only">(opens in a new tab)</span>
           </a>
           <form action={signOutOfAdmin} className="flex items-stretch">
             <button

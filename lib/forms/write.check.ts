@@ -8,8 +8,9 @@
  */
 import crypto from "crypto";
 import { colLetter, headerIndex, quoteTab, rowFromValues } from "@/lib/sheets-core";
-import { adminCookieValid, adminKeyCorrect, adminToken } from "@/lib/admin-gate";
+import { adminCookieValid, adminKeyCorrect, adminToken, safeNext } from "@/lib/admin-gate";
 import { adminCookieValidEdge, adminTokenEdge } from "@/lib/admin-gate-edge";
+
 
 let failures = 0;
 function check(label: string, cond: boolean, detail = "") {
@@ -214,6 +215,38 @@ function swap(a: number, b: number, dir: "up" | "down"): [number, number] {
   check("an unconfigured edge gate rejects everything",
     !(await adminCookieValidEdge(node)));
   process.env.ADMIN_ACCESS_KEY = "a-long-enough-test-key-9f2c";
+}
+
+/* ── The post-login return path ──────────────────────────────────────── */
+/*
+ * `next` arrives from a query string, so it is attacker-controlled. Handing it
+ * to `redirect` unchecked is an open redirect: a link to OUR login page that
+ * lands on someone else's site, with our domain in the address bar the whole
+ * way. The protocol-relative cases are the ones people miss — `//evil.test` is
+ * a host, not a path.
+ */
+{
+  const HOME = "/admin/members";
+  check("an empty next goes to the default landing", safeNext("") === HOME);
+  check("a real admin path is honored",
+    safeNext("/admin/options") === "/admin/options");
+  check("a path with a query survives",
+    safeNext("/admin/members?q=smith") === "/admin/members?q=smith",
+    safeNext("/admin/members?q=smith"));
+  check("/admin itself is fine", safeNext("/admin") === "/admin");
+
+  check("an absolute URL is refused", safeNext("https://evil.test") === HOME);
+  check("a PROTOCOL-RELATIVE url is refused", safeNext("//evil.test") === HOME,
+    safeNext("//evil.test"));
+  check("a backslash protocol-relative url is refused",
+    safeNext("/\\evil.test") === HOME, safeNext("/\\evil.test"));
+  check("a non-admin path is refused", safeNext("/member/110") === HOME);
+  check("a path merely STARTING with the letters admin is refused",
+    safeNext("/adminevil") === HOME, safeNext("/adminevil"));
+  check("…including one that looks like a subdomain trick",
+    safeNext("/admin.evil.test") === HOME, safeNext("/admin.evil.test"));
+  check("whitespace is trimmed before judging",
+    safeNext("  /admin/options  ") === "/admin/options");
 }
 
 /* ── HMAC sanity ─────────────────────────────────────────────────────── */

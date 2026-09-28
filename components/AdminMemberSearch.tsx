@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import FilterSelect from "@/components/FilterSelect";
 import SegmentedControl from "@/components/SegmentedControl";
 import {
@@ -11,6 +12,7 @@ import {
   MIN_QUERY_LENGTH,
   type Filters,
 } from "@/lib/directory/search";
+import { filtersFromParams, filtersToQueryString } from "@/lib/directory/url";
 import type { Directory, Member } from "@/lib/directory/types";
 
 /**
@@ -36,8 +38,34 @@ import type { Directory, Member } from "@/lib/directory/types";
  * links, because on this screen editing is the reason you searched.
  */
 export default function AdminMemberSearch({ directory }: { directory: Directory }) {
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  /*
+   * THE SEARCH LIVES IN THE URL, for the same reason it does on the member
+   * directory — and here it fixes a specific annoyance: without it, clicking
+   * "Update profile" and coming back landed you on an empty search, so every
+   * edit cost you retyping the query that found the person.
+   *
+   * `window.history.replaceState` rather than `router.replace`: this page is
+   * force-dynamic, so a Next navigation would re-run the server component and
+   * refetch the whole directory on every keystroke. REPLACE rather than push,
+   * so typing eight letters doesn't bury the previous page under eight history
+   * entries — while the link into the editor is a real navigation, so Back from
+   * there returns here with the search intact.
+   *
+   * It reuses `lib/directory/url.ts`, so an admin search URL and a member
+   * search URL use the same parameters and can be pasted between them.
+   */
+  const searchParams = useSearchParams();
+  const [filters, setFilters] = useState<Filters>(() => filtersFromParams(searchParams));
   const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
+
+  const queryString = filtersToQueryString(filters);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const next = `${window.location.pathname}${queryString ? `?${queryString}` : ""}`;
+    if (next !== window.location.pathname + window.location.search) {
+      window.history.replaceState(null, "", next);
+    }
+  }, [queryString]);
 
   const active = hasActiveSearch(filters);
   const results = useMemo(
@@ -126,7 +154,7 @@ export default function AdminMemberSearch({ directory }: { directory: Directory 
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
           {results.map((m) => (
-            <Card key={m.id} member={m} />
+            <Card key={m.id} member={m} search={queryString} />
           ))}
         </ul>
       )}
@@ -134,7 +162,7 @@ export default function AdminMemberSearch({ directory }: { directory: Directory 
   );
 }
 
-function Card({ member: m }: { member: Member }) {
+function Card({ member: m, search }: { member: Member; search: string }) {
   const place = [m.city, m.state].filter(Boolean).join(", ");
   return (
     <li className="flex flex-col rounded-xl border border-hair bg-panel p-4">
@@ -168,17 +196,38 @@ function Card({ member: m }: { member: Member }) {
 
       <div className="mt-3 flex items-center gap-3 pt-1">
         <Link
-          href={`/admin/members/${encodeURIComponent(m.id)}`}
+          href={`/admin/members/${encodeURIComponent(m.id)}${search ? `?from=${encodeURIComponent(search)}` : ""}`}
           className="rounded-md bg-accent px-3 py-1.5 text-[13px] font-medium text-white hover:bg-accentDark"
         >
           Update profile
         </Link>
-        <Link
+        {/*
+          LEAVES THE ADMIN AREA, so it opens a NEW TAB — a plain <a>, not
+          `next/link`, because this is a different section of the site rather
+          than a route within this one.
+
+          Following it in place cost DJ his place twice over: the destination is
+          a member's public profile, which looks enough like an admin detail
+          page to be mistaken for one, and Back then landed him in the members'
+          directory with the admin history gone. A new tab makes "this takes you
+          somewhere else" true rather than merely stated, and leaves the search
+          results exactly as they were.
+
+          The label names the DESTINATION ("the directory") rather than
+          describing a viewpoint — "View as a member sees it" reads like a
+          preview mode, which is not what it is.
+        */}
+        <a
           href={`/member/${encodeURIComponent(m.id)}`}
-          className="text-[13px] text-accent hover:underline"
+          target="_blank"
+          rel="noreferrer noopener"
+          className="inline-flex items-center gap-1 text-[13px] text-accent hover:underline"
+          title="Opens this member's page in the members' directory, in a new tab"
         >
-          View as a member sees it
-        </Link>
+          Open in the directory
+          <span aria-hidden="true" className="text-[11px]">↗</span>
+          <span className="sr-only">(opens in a new tab)</span>
+        </a>
       </div>
     </li>
   );

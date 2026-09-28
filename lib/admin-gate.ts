@@ -78,3 +78,42 @@ export function adminKeyCorrect(submitted: string): boolean {
     return false;
   }
 }
+
+/* ------------------------------------------------------ where you land -- */
+
+/**
+ * Where signing in lands you.
+ *
+ * **Member Search, not the fields screen** (DJ, 28 Sep): once ITA has settled
+ * the forms, looking a member up is the daily job and editing field definitions
+ * is the occasional one, so the default is the thing people came for.
+ */
+export const ADMIN_HOME = "/admin/members";
+
+/**
+ * A safe return path for `?next=`.
+ *
+ * It arrives from a query string, so it is attacker-controlled, and handing it
+ * to `redirect` unchecked is a textbook open redirect — a link to OUR login
+ * page that lands on someone else's site, wearing our domain in the address bar
+ * the whole way.
+ *
+ * It must be a path INSIDE `/admin`, and must not start with `//` or `/\`,
+ * which browsers read as protocol-relative URLs (`//evil.test` is a HOST, not a
+ * path — the case people miss). `/adminevil` is rejected too: starting with the
+ * letters is not the same as being inside the section. Anything unrecognized
+ * falls back rather than being sanitized into something nearby.
+ *
+ * **Lives here, not in the server-action module**, so it can be checked under
+ * bare Node — importing a `"use server"` file into a fixture pulls in
+ * `next/headers` and the suite simply stops running.
+ */
+export function safeNext(raw: string): string {
+  const value = raw.trim();
+  if (!value.startsWith("/admin")) return ADMIN_HOME;
+  if (value.startsWith("//") || value.startsWith("/\\")) return ADMIN_HOME;
+  if (value.length > "/admin".length && !"/?#".includes(value["/admin".length])) {
+    return ADMIN_HOME;
+  }
+  return value;
+}

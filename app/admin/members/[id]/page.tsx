@@ -9,6 +9,7 @@ import {
   VISIBILITY_LABELS,
 } from "@/lib/forms/labels";
 import type { FormField } from "@/lib/forms/types";
+import { CONTACT } from "@/lib/brand";
 import { Banner } from "../../ui";
 import SubmitButton from "../../SubmitButton";
 import { saveProfileAction } from "./actions";
@@ -70,9 +71,27 @@ export default async function UpdateProfilePage({
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6">
-      <Link href="/admin/members" className="text-[13px] text-accent hover:underline">
-        ← Back to member search
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* Carries the search that found this person, so Back doesn't cost a retype. */}
+        <Link
+          href={one("from") ? `/admin/members?${one("from")}` : "/admin/members"}
+          className="text-[13px] text-accent hover:underline"
+        >
+          ← Back to Member Search
+        </Link>
+        {/* Leaves the admin area, so a new tab — see AdminMemberSearch. */}
+        <a
+          href={`/member/${encodeURIComponent(member.id)}`}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="inline-flex items-center gap-1 text-[13px] text-accent hover:underline"
+          title="Opens this member's page in the members' directory, in a new tab"
+        >
+          Open in the directory
+          <span aria-hidden="true" className="text-[11px]">↗</span>
+          <span className="sr-only">(opens in a new tab)</span>
+        </a>
+      </div>
 
       <h1 className="mt-2 text-2xl">{member.name}</h1>
       <p className="mt-1 text-[14px] text-sub">
@@ -83,7 +102,7 @@ export default async function UpdateProfilePage({
 
       <Banner error={one("error")} saved={one("saved")} />
 
-      <FromTheImport member={member} />
+      <ProfileSummary member={member} name={member.name} />
 
       {fields.length === 0 ? (
         <p className="mt-8 rounded-xl border border-hair bg-panel px-6 py-10 text-center text-[14px] text-sub">
@@ -128,14 +147,31 @@ export default async function UpdateProfilePage({
 }
 
 /**
- * The imported record, flat and read-only.
+ * PROFILE SUMMARY — the member's core record, read-only.
  *
  * Present so whoever is editing can see they have the right person without
- * opening another tab, and absent as INPUTS so there is one source of truth.
+ * opening another tab, and absent as INPUTS because the CRM import is the
+ * single source of truth for these.
+ *
+ * ── IT IS WRITTEN FOR THE MEMBER, NOT FOR US ──────────────────────────────
+ *
+ * This panel said "FROM THE MEMBERSHIP IMPORT — NOT EDITABLE HERE", and
+ * explained underneath that the values come from ITA's CRM export so the
+ * directory never holds two answers for one thing. All true, and all OUR
+ * problem: a member reading it learns about an export they have no relationship
+ * with, and is told what they CAN'T do rather than what they can.
+ *
+ * DJ's call, 28 Sep: "the member doesn't need to know why." So it is now
+ * "Profile Summary", and the footer answers the only question a reader actually
+ * has when they spot something wrong — who do I tell? That matters more than it
+ * looks, because this exact component is what members will see when self-
+ * service sign-in ships; writing it for staff now would mean rewriting it then.
  */
-function FromTheImport({
+function ProfileSummary({
   member: m,
+  name,
 }: {
+  name: string;
   member: {
     organization: string;
     email: string;
@@ -164,7 +200,7 @@ function FromTheImport({
   return (
     <section className="mt-6 rounded-xl border border-hair bg-panel2 p-4">
       <h2 className="text-[12px] font-semibold uppercase tracking-wide text-sub">
-        From the membership import — not editable here
+        Profile Summary
       </h2>
       <dl className="mt-3 grid gap-x-6 gap-y-1.5 text-[13px] sm:grid-cols-2">
         {rows.map(([k, v]) => (
@@ -174,9 +210,21 @@ function FromTheImport({
           </div>
         ))}
       </dl>
-      <p className="mt-3 text-[12px] text-sub">
-        These come from ITA’s CRM export and change there, so the directory never
-        holds two different answers for the same thing.
+      {/*
+        The only question a reader has when something here is wrong: who do I
+        tell? A mailto with the subject pre-filled saves them explaining which
+        record they mean — and saves ITA guessing.
+      */}
+      <p className="mt-4 border-t border-hair pt-3 text-[12px] text-sub">
+        Need to make updates to the above?{" "}
+        <a
+          href={`mailto:${CONTACT.email}?subject=${encodeURIComponent(
+            `Profile update request — ${name}`
+          )}`}
+          className="text-accent hover:underline"
+        >
+          Email us at {CONTACT.email}
+        </a>
       </p>
     </section>
   );

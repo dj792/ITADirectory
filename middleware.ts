@@ -53,6 +53,10 @@ export default auth(async (req) => {
       const url = req.nextUrl.clone();
       url.pathname = "/admin-login";
       url.search = "";
+      // Carry where they were going, so a deep link survives the detour. The
+      // sign-in action VALIDATES this before redirecting — see `safeNext`.
+      const wanted = `${pathname}${req.nextUrl.search}`;
+      if (wanted !== "/admin/members") url.searchParams.set("next", wanted);
       return NextResponse.redirect(url);
     }
     return NextResponse.next();
