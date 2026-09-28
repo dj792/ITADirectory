@@ -129,8 +129,8 @@ export default async function FormPreviewPage({
                   What the member sees
                 </p>
                 <h2 className="mt-1 text-[22px] leading-tight">
-                  {active} form ·{" "}
-                  {isOrg ? "Organization" : "Individual"}
+                  {config.formLabels.get(active) ?? active}
+                  <span className="text-sub"> · {isOrg ? "Organization" : "Individual"}</span>
                 </h2>
                 <p className="mt-1 text-[13px] text-sub">
                   {shown.length} field{shown.length === 1 ? "" : "s"}
@@ -258,10 +258,19 @@ function Controls({
 
   return (
     <div className="mt-6 space-y-3">
+      {/*
+        The button carries the CODE and the NAME together: the code is what the
+        sheet and ITA's own paperwork use, the name is what makes it legible to
+        someone reviewing this once a quarter. Showing only one of them means
+        either a row of initials or a row of sentences.
+      */}
       <Row label="Form">
         {types.map((t) => (
           <Pill key={t} href={href({ type: t })} on={t === active}>
-            {t}
+            <span className="block font-semibold">{t}</span>
+            <span className="block text-[11px] opacity-80">
+              {config.formLabels.get(t) ?? t}
+            </span>
           </Pill>
         ))}
       </Row>
@@ -312,7 +321,7 @@ function Pill({
   return (
     <Link
       href={href}
-      className={`rounded-md border px-3 py-1 text-[13px] ${
+      className={`rounded-md border px-3 py-1.5 text-left text-[13px] leading-tight ${
         on
           ? "border-accent bg-accent text-white"
           : "border-hair bg-panel text-fg hover:border-accent/40"

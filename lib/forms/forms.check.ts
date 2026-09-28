@@ -114,6 +114,57 @@ check("…and every mapped level appears in it",
   config.levels.length === config.levelToType.size,
   `${config.levels.length} vs ${config.levelToType.size}`);
 
+/* ── Readable form names ─────────────────────────────────────────────── */
+/*
+ * "TP" is ITA's shorthand; the screens show a name. It comes from a FormName
+ * column when they fill one in, and is otherwise DERIVED from what the mapped
+ * membership levels have in common — which is why the three Technology Partner
+ * tiers produce "Technology Partner" without anyone typing it.
+ */
+check("a single level loses its parenthetical code",
+  config.formLabels.get("CR") === "Consultants and Resellers",
+  config.formLabels.get("CR"));
+check("several levels derive their shared prefix",
+  config.formLabels.get("TP") === "Technology Partner",
+  config.formLabels.get("TP"));
+check("…and the trailing separator is trimmed",
+  !/[-–—:\s]$/.test(config.formLabels.get("TP") ?? "x"));
+check("a long name survives intact",
+  config.formLabels.get("ITL") === "Internal Technology Leaders of CPA Firms",
+  config.formLabels.get("ITL"));
+check("an explicit FormName wins over derivation",
+  config.formLabels.get("DEFAULT") === "Other members",
+  config.formLabels.get("DEFAULT"));
+check("every form has a non-empty name",
+  [...config.forms.keys()].every((t) => (config.formLabels.get(t) ?? "").length > 0));
+
+{
+  // Levels with nothing in common must NOT be given an invented name.
+  const odd = parseFormConfig({
+    ...tabs,
+    formTypes: {
+      headers: ["MembershipLevel", "ApplicationType", "Active"],
+      rows: [
+        ["Alpha Group", "MIX", "TRUE"],
+        ["Zeta Holdings", "MIX", "TRUE"],
+      ],
+    },
+  });
+  check("unrelated levels fall back to the code, not a fragment",
+    odd.formLabels.get("MIX") === "MIX", odd.formLabels.get("MIX"));
+
+  // A two-character shared prefix is noise, not a name.
+  const thin = parseFormConfig({
+    ...tabs,
+    formTypes: {
+      headers: ["MembershipLevel", "ApplicationType", "Active"],
+      rows: [["AB one", "X", "TRUE"], ["AB two", "X", "TRUE"]],
+    },
+  });
+  check("a too-short shared prefix is rejected",
+    thin.formLabels.get("X") === "X", thin.formLabels.get("X"));
+}
+
 /* ── AppliesTo splits org from individual ────────────────────────────── */
 const orgForm = formFor(config, "Technology Partner - Gold", true);
 const indForm = formFor(config, "Technology Partner - Gold", false);

@@ -39,6 +39,7 @@ const F = {
   // FormTypes
   membershipLevel: ["MembershipLevel", "Membership Level", "Level"],
   applicationType: ["ApplicationType", "Application Type", "Type", "Form"],
+  formName: ["FormName", "Form Name", "Description", "Form Description"],
   active: ["Active", "IsActive", "Enabled"],
   // Fields
   fieldId: ["FieldID", "Field ID", "Field", "Key"],
@@ -169,30 +170,97 @@ export function isReservedField(idOrLabel: string): boolean {
 
 /* ------------------------------------------------------------ FormTypes -- */
 
+/**
+ * A readable name for a form.
+ *
+ * "TP" and "CR" are ITA's internal shorthand. They are right in a spreadsheet
+ * cell and wrong on a button someone reviews once a quarter, so the UI shows a
+ * name — but the name is ITA's to choose, not ours to hard-code, which is the
+ * whole premise of these tabs.
+ *
+ * Three sources, in order:
+ *   1. A `FormName` column in FormTypes, if they add one. Optional: the tab
+ *      predates it and header-name resolution means adding a column is safe.
+ *   2. DERIVED from the membership levels that map to the form. The three
+ *      Technology Partner tiers share the prefix "Technology Partner", which is
+ *      exactly the name wanted — so the common ground between the levels IS the
+ *      name of the form, for free and always in step with the mapping.
+ *   3. The code itself, when neither works (DEFAULT collects CTP, MIT and SHP,
+ *      which have nothing in common and should not be given an invented name).
+ */
+function commonPrefix(values: string[]): string {
+  if (values.length === 0) return "";
+  if (values.length === 1) {
+    // One level: drop a trailing code in parentheses — "Consultants and
+    // Resellers (CR)" is the name plus the thing the button already says.
+    return values[0].replace(/\s*\([^)]*\)\s*$/, "").trim();
+  }
+  const words = values.map((v) => v.trim().split(/\s+/));
+  const out: string[] = [];
+  for (let i = 0; i < words[0].length; i++) {
+    const w = words[0][i];
+    if (words.every((ws) => ws[i]?.toLowerCase() === w.toLowerCase())) out.push(w);
+    else break;
+  }
+  // Trim a dangling separator left by the split ("Technology Partner -").
+  return out.join(" ").replace(/[\s\-–—:·,]+$/, "").trim();
+}
+
+/** Readable name per application type. Never empty — falls back to the code. */
+export function formLabelsFrom(
+  levels: { label: string; type: ApplicationType }[],
+  explicit: Map<string, string>
+): Map<ApplicationType, string> {
+  const byType = new Map<ApplicationType, string[]>();
+  for (const l of levels) {
+    if (!l.label) continue;
+    byType.set(l.type, [...(byType.get(l.type) ?? []), l.label]);
+  }
+  const out = new Map<ApplicationType, string>();
+  for (const type of new Set([...byType.keys(), ...explicit.keys()])) {
+    const named = (explicit.get(type) ?? "").trim();
+    if (named) {
+      out.set(type, named);
+      continue;
+    }
+    const derived = commonPrefix(byType.get(type) ?? []);
+    // A two-character residue is noise, not a name.
+    out.set(type, derived.length >= 4 ? derived : type);
+  }
+  return out;
+}
+
 export function parseFormTypes(tab: SheetTab): {
   levelToType: Map<string, ApplicationType>;
   levels: { label: string; type: ApplicationType }[];
+  formLabels: Map<ApplicationType, string>;
   defaultType: ApplicationType;
   problems: string[];
 } {
   const problems: string[] = [];
   const levelToType = new Map<string, ApplicationType>();
   const levels: { label: string; type: ApplicationType }[] = [];
+  const explicit = new Map<string, string>();
   let defaultType = "DEFAULT";
-  if (tab.headers.length === 0) return { levelToType, levels, defaultType, problems };
+  if (tab.headers.length === 0)
+    return { levelToType, levels, formLabels: new Map(), defaultType, problems };
 
   const iLevel = headerIndex(tab.headers, ...F.membershipLevel);
   const iType = headerIndex(tab.headers, ...F.applicationType);
   const iActive = headerIndex(tab.headers, ...F.active);
   if (iType < 0) {
     problems.push("FormTypes: no ApplicationType column — no member gets a form");
-    return { levelToType, levels, defaultType, problems };
+    return { levelToType, levels, formLabels: new Map(), defaultType, problems };
   }
+  const iName = headerIndex(tab.headers, ...F.formName);
 
   for (const row of tab.rows) {
     if (!isActive(row, iActive)) continue;
     const type = cell(row, iType);
     if (!type) continue;
+    // First non-blank name for a type wins; the other rows may leave it empty.
+    const named = cell(row, iName);
+    if (named && !explicit.get(type)) explicit.set(type, named);
     // A BLANK membership level is the fallback row, not a mistake: 12 members
     // carry no level at all, and they still need a form to open.
     const level = cell(row, iLevel);
@@ -212,7 +280,13 @@ export function parseFormTypes(tab: SheetTab): {
     // Original casing kept for display — the key above is a matching form.
     levels.push({ label: level, type });
   }
-  return { levelToType, levels, defaultType, problems };
+  return {
+    levelToType,
+    levels,
+    formLabels: formLabelsFrom(levels, explicit),
+    defaultType,
+    problems,
+  };
 }
 
 /* --------------------------------------------------------------- Fields -- */
@@ -482,6 +556,7 @@ export function parseFormConfig(tabs: {
   return {
     levelToType: t.levelToType,
     levels: t.levels,
+    formLabels: t.formLabels,
     defaultType: t.defaultType,
     fields: f.fields,
     options: o.options,

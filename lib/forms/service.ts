@@ -48,6 +48,7 @@ const EMPTY = (
 ): LoadedFormConfig => ({
   levelToType: new Map(),
   levels: [],
+  formLabels: new Map(),
   defaultType: "DEFAULT",
   fields: new Map(),
   options: new Map(),

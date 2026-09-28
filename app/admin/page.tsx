@@ -93,13 +93,16 @@ export default async function AdminFieldsPage({
           <Link
             key={t}
             href={`/admin?type=${encodeURIComponent(t)}`}
-            className={`rounded-md border px-3 py-1 text-[13px] ${
+            className={`rounded-md border px-3 py-1.5 text-left text-[13px] leading-tight ${
               t === type
                 ? "border-accent bg-accent text-white"
                 : "border-hair bg-panel text-fg hover:border-accent/40"
             }`}
           >
-            {t}
+            <span className="block font-semibold">{t}</span>
+            <span className="block text-[11px] opacity-80">
+              {config.formLabels.get(t) ?? t}
+            </span>
           </Link>
         ))}
         <Link
@@ -111,7 +114,11 @@ export default async function AdminFieldsPage({
       </div>
 
       <p className="mt-4 text-[13px] text-sub">
-        {fields.length} field{fields.length === 1 ? "" : "s"} on the {type} form
+        {fields.length} field{fields.length === 1 ? "" : "s"} on the{" "}
+        <strong className="font-semibold text-fg">
+          {config.formLabels.get(type) ?? type}
+        </strong>{" "}
+        form
       </p>
 
       {/* The list */}

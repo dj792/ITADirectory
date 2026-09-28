@@ -124,6 +124,14 @@ export type FormConfig = {
   levelToType: Map<string, ApplicationType>;
   /** The mappings as ITA wrote them, for display. Order follows the tab. */
   levels: { label: string; type: ApplicationType }[];
+  /**
+   * A readable name per form — "Technology Partner" rather than "TP".
+   *
+   * From a `FormName` column in FormTypes if ITA adds one, otherwise derived
+   * from what the mapped membership levels have in common, otherwise the code.
+   * Never empty, so a caller can use it without a fallback of its own.
+   */
+  formLabels: Map<ApplicationType, string>;
   /** The fallback form for a level that maps to nothing. */
   defaultType: ApplicationType;
   fields: Map<string, FieldDef>;
