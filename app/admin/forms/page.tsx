@@ -85,7 +85,7 @@ export default async function FormPreviewPage({
   // only its own content now that it sits inside the gated admin area.
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6">
-        <h1 className="text-2xl">Custom field forms</h1>
+      <h1 className="text-2xl">Custom field forms</h1>
         <p className="mt-1 text-[14px] text-sub">
           Read-only preview of the four configuration tabs. Nothing here saves.
         </p>
@@ -98,35 +98,71 @@ export default async function FormPreviewPage({
           <Empty config={config} />
         ) : (
           <>
-            <Controls
-              types={types}
-              active={active}
-              isOrg={isOrg}
-              audience={audience}
-              config={config}
-            />
+            {/*
+              THE CONTROLS ARE A PANEL, AND THE PREVIEW IS A SEPARATE SURFACE.
+              Before, the two ran together down one page and the buttons read as
+              part of the form — the first thing a member would see was
+              apparently a row of tabs. Two containers with different
+              backgrounds, and a heading on the preview that says whose form it
+              is, keep "what you're looking at" and "what you're looking with"
+              from being mistaken for each other.
+            */}
+            <section className="mt-6 rounded-xl border border-hair bg-panel2 p-4">
+              <h2 className="text-[12px] font-semibold uppercase tracking-wide text-sub">
+                Preview settings
+              </h2>
+              <div className="mt-3">
+                <Controls
+                  types={types}
+                  active={active}
+                  isOrg={isOrg}
+                  audience={audience}
+                  config={config}
+                />
+              </div>
+              <Legend />
+            </section>
 
-            <Legend />
+            <section className="mt-8 overflow-hidden rounded-xl border-2 border-accent/20 bg-panel">
+              <header className="border-b border-hair bg-accent/5 px-5 py-4">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-accentDark">
+                  What the member sees
+                </p>
+                <h2 className="mt-1 text-[22px] leading-tight">
+                  {active} form ·{" "}
+                  {isOrg ? "Organization" : "Individual"}
+                </h2>
+                <p className="mt-1 text-[13px] text-sub">
+                  {shown.length} field{shown.length === 1 ? "" : "s"}
+                  {form && shown.length !== form.fields.length && (
+                    <>
+                      {" "}
+                      · {form.fields.length - shown.length} more hidden from{" "}
+                      {audience === "public" ? "the public" : audience}
+                    </>
+                  )}
+                </p>
+              </header>
 
-            <p className="mt-5 text-[13px] text-sub">
-              {shown.length} field{shown.length === 1 ? "" : "s"} shown
-              {form && shown.length !== form.fields.length && (
-                <> · {form.fields.length - shown.length} hidden at this visibility</>
-              )}
-            </p>
-
-            <div className="mt-4 space-y-8">
-              {groups.map((g) => (
-                <section key={g.name}>
-                  <h2 className="border-b border-hair pb-2 text-[16px]">{g.name}</h2>
-                  <div className="mt-4 space-y-5">
-                    {g.fields.map((f) => (
-                      <Field key={f.id} field={f} />
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
+              <div className="space-y-8 px-5 py-6">
+                {groups.map((g) => (
+                  <section key={g.name}>
+                    <h3 className="border-b border-hair pb-2 text-[16px]">{g.name}</h3>
+                    <div className="mt-4 space-y-5">
+                      {g.fields.map((f) => (
+                        <Field key={f.id} field={f} />
+                      ))}
+                    </div>
+                  </section>
+                ))}
+                {groups.length === 0 && (
+                  <p className="py-6 text-center text-[14px] text-sub">
+                    Nothing on this form is visible to{" "}
+                    {audience === "public" ? "the public" : audience}.
+                  </p>
+                )}
+              </div>
+            </section>
           </>
         )}
     </main>
@@ -432,7 +468,7 @@ function Legend() {
       .map(([, v]) => ["Searching", v] as [string, Explained]),
   ];
   return (
-    <details className="mt-4 rounded-lg border border-hair bg-panel px-4 py-3">
+    <details className="mt-3 border-t border-hair pt-3">
       <summary className="cursor-pointer text-[13px] font-medium text-accent">
         What do the labels next to each field mean?
       </summary>
