@@ -1,4 +1,5 @@
 import { headerIndex, toBool, type SheetTab } from "@/lib/sheets-core";
+import { locationFacets } from "./location";
 import { normalize } from "./search";
 import type { Directory, Member } from "./types";
 
@@ -298,6 +299,8 @@ export function parseProfiles(tab: SheetTab): {
       // Set by `admit.ts` for people admitted through a member firm — the
       // parser reads one row at a time and has no view of the relations table.
       orgMembershipLevel: "",
+      orgCity: "",
+      orgState: "",
       listingLevel: cell(row, idx.listingLevel),
       listingCategory: cell(row, idx.listingCategory),
     };
@@ -343,6 +346,8 @@ export function facetsOf(members: Member[]): Directory["facets"] {
     lastEvent: Array.from(new Set(members.map((m) => m.lastEvent).filter(Boolean))).sort(
       byEventRecency
     ),
+    // Normalized, so "Ohio" and "OH" are one option — see location.ts.
+    ...locationFacets(members),
   };
 }
 

@@ -1,4 +1,5 @@
 import type { Member } from "./types";
+import { matchesCities, matchesStates } from "./location";
 
 /**
  * Query matching — CLIENT-SAFE. This module must never import `lib/sheets-core`
@@ -45,6 +46,14 @@ export type Filters = {
   lastEvent: string;
   /** "" = both (default) · "org" · "individual" */
   kind: ProfileKind;
+  /**
+   * States, MULTI-SELECT, as normalized codes ("OH"). OR within, AND across —
+   * same rule as levels. A person at a member firm matches on their own state
+   * OR the firm's; see `matchesStates` in location.ts.
+   */
+  states: string[];
+  /** Cities as "City, ST", MULTI-SELECT. Same rules as `states`. */
+  cities: string[];
 };
 
 export const EMPTY_FILTERS: Filters = {
@@ -53,6 +62,8 @@ export const EMPTY_FILTERS: Filters = {
   status: "",
   lastEvent: "",
   kind: "",
+  states: [],
+  cities: [],
 };
 
 /**
@@ -100,6 +111,8 @@ export function hasActiveSearch(f: Filters): boolean {
   return (
     f.q.trim().length >= MIN_QUERY_LENGTH ||
     f.membershipLevels.length > 0 ||
+    f.states.length > 0 ||
+    f.cities.length > 0 ||
     !!f.status ||
     !!f.lastEvent
   );
@@ -142,6 +155,8 @@ export function applyFilters(members: Member[], f: Filters): Member[] {
     (m) =>
       // OR within the field, AND across fields — see `Filters.membershipLevels`.
       matchesLevel(m, f.membershipLevels) &&
+      matchesStates(m, f.states) &&
+      matchesCities(m, f.cities) &&
       (!f.status || m.status === f.status) &&
       (!f.lastEvent || m.lastEvent === f.lastEvent) &&
       (!f.kind || (f.kind === "org") === m.isOrganization) &&

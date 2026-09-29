@@ -233,7 +233,7 @@ function loadFromFixture(): Directory {
   if (!FIXTURE) {
     return {
       members: [],
-      facets: { membershipLevel: [], status: [], lastEvent: [] },
+      facets: { membershipLevel: [], status: [], lastEvent: [], state: [], city: [] },
       rosters: {},
       source: { kind: "fixture", sheetUrl: null, readAt: new Date().toISOString() },
     };

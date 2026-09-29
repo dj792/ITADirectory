@@ -1,4 +1,5 @@
 import { EMPTY_FILTERS, type Filters } from "./search";
+import { stateCode } from "./location";
 
 /**
  * The search, expressed as a URL — CLIENT-SAFE (imports nothing server-only).
@@ -22,10 +23,14 @@ const PARAM: Record<keyof Filters, string> = {
   status: "status",
   lastEvent: "event",
   kind: "type",
+  // Added 29 Sep 2026. Repeated like `level`, never comma-joined: a city
+  // value is "Chicago, IL" and already contains a comma.
+  states: "state",
+  cities: "city",
 };
 
 /** The params that may appear more than once. Everything else is single-valued. */
-const MULTI = new Set<keyof Filters>(["membershipLevels"]);
+const MULTI = new Set<keyof Filters>(["membershipLevels", "states", "cities"]);
 
 /** Anything a Next.js page hands to a component as its search params. */
 export type ParamInput =
@@ -79,6 +84,9 @@ export function filtersFromParams(params: ParamInput): Filters {
     // A closed set, so an unrecognized value falls back to "both" rather than
     // filtering on a string no member can match and showing an empty page.
     kind: kind === "org" || kind === "individual" ? kind : "",
+    // Normalized, so a hand-typed "?state=ohio" means OH rather than nothing.
+    states: Array.from(new Set(readAll(params, PARAM.states).map(stateCode))),
+    cities: readAll(params, PARAM.cities),
   };
 }
 

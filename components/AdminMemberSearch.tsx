@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import FilterSelect from "@/components/FilterSelect";
+import { citiesFor, pruneCities } from "@/lib/directory/location";
 import SegmentedControl from "@/components/SegmentedControl";
 import {
   applyFilters,
@@ -75,6 +76,9 @@ export default function AdminMemberSearch({ directory }: { directory: Directory 
   const typedTooShort = !active && filters.q.trim().length > 0;
 
   const levels = directory.facets.membershipLevel;
+  // Same State/City filters as the members' directory, same matching rules.
+  const states = directory.facets.state;
+  const cities = citiesFor(directory.facets.city, filters.states);
 
   return (
     <div className="space-y-5">
@@ -117,6 +121,31 @@ export default function AdminMemberSearch({ directory }: { directory: Directory 
           />
         </div>
 
+        {(states.length > 0 || cities.length > 0) && (
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {states.length > 0 && (
+              <FilterSelect
+                label="State"
+                values={filters.states}
+                options={states}
+                onChange={(vs) =>
+                  set({ states: vs, cities: pruneCities(filters.cities, vs) })
+                }
+                multiple
+              />
+            )}
+            {cities.length > 0 && (
+              <FilterSelect
+                label="City"
+                values={filters.cities}
+                options={cities}
+                onChange={(vs) => set({ cities: vs })}
+                multiple
+              />
+            )}
+          </div>
+        )}
+
         <div className="mt-3 flex items-center justify-between text-[13px] text-sub">
           <span aria-live="polite">
             {!active
@@ -125,7 +154,11 @@ export default function AdminMemberSearch({ directory }: { directory: Directory 
                 : `${directory.members.length} in the directory`
               : `${results.length} of ${directory.members.length}`}
           </span>
-          {(filters.q || filters.membershipLevels.length > 0 || filters.kind) && (
+          {(filters.q ||
+            filters.membershipLevels.length > 0 ||
+            filters.states.length > 0 ||
+            filters.cities.length > 0 ||
+            filters.kind) && (
             <button
               type="button"
               onClick={() => setFilters(EMPTY_FILTERS)}

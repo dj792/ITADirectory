@@ -87,6 +87,9 @@ export function admit(profiles: Member[], rosters: Map<string, Link[]>): AdmitRe
          * never display it as if it were theirs.
          */
         orgMembershipLevel: org?.membershipLevel ?? "",
+        // Same idea for location: filter keys only, never displayed as theirs.
+        orgCity: org?.city ?? "",
+        orgState: org?.state ?? "",
       });
     }
   }

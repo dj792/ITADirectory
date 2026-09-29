@@ -355,12 +355,14 @@ function countBlankPrimaryCategory(csv: string): number {
     status: "Technology Partner",
     lastEvent: "ITA Spring 2026 Collaborative",
     kind: "",
+    states: ["OH"],
+    cities: ["Columbus, OH"],
   };
 
-  check("param names are q / level / status / event",
+  check("param names are q / level / status / event / state / city",
     filtersToQueryString(full) ===
       "q=martus&level=Technology+Partner+-+Gold&status=Technology+Partner" +
-      "&event=ITA+Spring+2026+Collaborative",
+      "&event=ITA+Spring+2026+Collaborative&state=OH&city=Columbus%2C+OH",
     filtersToQueryString(full));
 
   check("filters survive the round trip",
@@ -468,6 +470,12 @@ function countBlankPrimaryCategory(csv: string): number {
     filtersFromParams({ level: [gold, gold, silver] }).membershipLevels.length === 2);
   check("blank level params are dropped",
     filtersFromParams({ level: ["", gold] }).membershipLevels.length === 1);
+  check("a hand-typed state name in a URL is normalized",
+    filtersFromParams({ state: ["ohio", "OH"] }).states.join(",") === "OH");
+  check("a city value keeps its comma through the round trip",
+    filtersFromParams(new URLSearchParams(
+      filtersToQueryString({ ...EMPTY_FILTERS, cities: ["Springfield, MO", "Springfield, IL"] })
+    )).cities.join("|") === "Springfield, IL|Springfield, MO");
   check("no level leaves the URL clean",
     filtersToQueryString({ ...EMPTY_FILTERS, membershipLevels: [] }) === "");
 }

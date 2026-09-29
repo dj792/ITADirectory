@@ -99,6 +99,15 @@ export type Member = {
    * it; the card and the member page deliberately do not.
    */
   orgMembershipLevel: string;
+  /**
+   * The admitting firm's city and state — FILTER KEYS, like
+   * `orgMembershipLevel`, set by `admit.ts` and "" for everyone else. They let
+   * a State/City filter find staff who work for a firm there but live
+   * elsewhere (`lib/directory/location.ts`). Never displayed as this person's
+   * location; the card shows their own.
+   */
+  orgCity: string;
+  orgState: string;
   website: string;
   city: string;
   state: string;
@@ -166,6 +175,10 @@ export type Directory = {
     membershipLevel: string[];
     status: string[];
     lastEvent: string[];
+    /** Normalized state codes ("OH", not "Ohio") — see location.ts. */
+    state: string[];
+    /** "City, ST" — a city always carries its state. */
+    city: string[];
   };
   /** Where this data came from — shown in the page footer. */
   source: {

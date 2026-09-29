@@ -16,6 +16,7 @@ import {
 } from "@/lib/directory/search";
 import { monthYearLabel } from "@/lib/directory/date";
 import { eventFilterPending, PENDING_NOTE } from "@/lib/directory/pending";
+import { citiesFor, pruneCities } from "@/lib/directory/location";
 import type { Directory, Member } from "@/lib/directory/types";
 
 /**
@@ -74,6 +75,8 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
     filters.q && `search: ${filters.q}`,
     filters.membershipLevels.length > 0 &&
       `level: ${filters.membershipLevels.join(", ")}`,
+    filters.states.length > 0 && `state: ${filters.states.join(", ")}`,
+    filters.cities.length > 0 && `city: ${filters.cities.join("; ")}`,
     filters.status && `status: ${filters.status}`,
     filters.lastEvent && `event: ${filters.lastEvent}`,
     filters.kind === "org" && "organizations only",
@@ -86,6 +89,8 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
   const isFiltered =
     !!filters.q ||
     filters.membershipLevels.length > 0 ||
+    filters.states.length > 0 ||
+    filters.cities.length > 0 ||
     !!filters.status ||
     !!filters.lastEvent ||
     !!filters.kind;
@@ -142,6 +147,30 @@ export default function MemberSearch({ directory }: { directory: Directory }) {
     // still parsed and still shown on a member's card and page; only the filter
     // is gone. `?status=` in a URL is still honored, and restoring the control
     // is one entry in this array.
+    /*
+     * STATE and CITY (29 Sep 2026). Multi-select, OR within / AND across, and
+     * a person at a member firm matches on their own location OR the firm's —
+     * the same rule as membership level. See lib/directory/location.ts.
+     *
+     * Choosing states narrows the City list to those states, and drops any
+     * chosen city that falls outside them — a hidden selection that empties
+     * the results with nothing on screen to explain it is worse than losing it.
+     */
+    {
+      label: "State",
+      values: filters.states,
+      options: directory.facets.state,
+      onChange: (vs: string[]) =>
+        set({ states: vs, cities: pruneCities(filters.cities, vs) }),
+      multiple: true,
+    },
+    {
+      label: "City",
+      values: filters.cities,
+      options: citiesFor(directory.facets.city, filters.states),
+      onChange: (vs: string[]) => set({ cities: vs }),
+      multiple: true,
+    },
     {
       label: "Last event signed up for",
       values: filters.lastEvent ? [filters.lastEvent] : [],

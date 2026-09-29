@@ -15,7 +15,8 @@ import { parseCsv } from "./csv";
 import { parseProfiles } from "./parse";
 import { parseRelations, linksByOrg } from "./relations";
 import { admit } from "./admit";
-import { applyFilters, EMPTY_FILTERS } from "./search";
+import { applyFilters, EMPTY_FILTERS, hasActiveSearch } from "./search";
+import { stateCode } from "./location";
 
 const PROFILES = path.join(process.cwd(), "data", "ProfileView.csv");
 const RELATIONS = path.join(process.cwd(), "data", "ProfileRelations.csv");
@@ -197,6 +198,47 @@ check("a former employee of a member is not admitted through that link", (() => 
   check("a former ITA employee (2453) is NOT admitted", !admittedIds.has("2453"),
     result.members.find((m) => m.id === "2453")?.name ?? "");
   check("…and is not on ITA's roster", !staffIds.has("2453"));
+}
+
+/*
+ * ── STATE / CITY + INDIVIDUALS (29 Sep 2026) ──────────────────────────────
+ * Same rule as levels: a person at a member firm matches on their own
+ * location OR the firm's. Pinned against the real data.
+ */
+{
+  const staff = result.members.filter((m) => !m.isMember && !m.isOrganization);
+  const byIdAll = new Map(result.members.map((m) => [m.id, m]));
+
+  check("staff carry their firm's state for filtering",
+    staff.filter((m) => m.orgState).length > staff.length * 0.9,
+    `${staff.filter((m) => m.orgState).length} of ${staff.length}`);
+  check("the borrowed location is the admitting firm's own",
+    staff.every((m) => !m.orgState || byIdAll.get(m.relatedOrgId)?.state === m.orgState));
+
+  // Someone who lives in one state and works for a firm in another.
+  const remote = staff.find((m) =>
+    m.state && m.orgState && stateCode(m.state) !== stateCode(m.orgState));
+  if (remote) {
+    const firmState = stateCode(remote.orgState);
+    const hits = applyFilters(result.members, {
+      ...EMPTY_FILTERS, kind: "individual", states: [firmState],
+    });
+    check(`remote staff are found under their firm's state (${firmState})`,
+      hits.some((m) => m.id === remote.id));
+    check("…and under their own state",
+      applyFilters(result.members, { ...EMPTY_FILTERS, states: [stateCode(remote.state)] })
+        .some((m) => m.id === remote.id));
+    check(`every ${firmState} hit lives there or works for a firm there`,
+      hits.every((m) => stateCode(m.state) === firmState || stateCode(m.orgState) === firmState));
+  }
+
+  // Organizations match on their OWN location only — they have no firm.
+  const orgs = result.members.filter((m) => m.isOrganization);
+  check("organizations carry no borrowed location", orgs.every((m) => !m.orgState && !m.orgCity));
+
+  // A state alone is a real search: it opens the results.
+  check("a State filter alone counts as a search",
+    hasActiveSearch({ ...EMPTY_FILTERS, states: ["OH"] }));
 }
 
 // ── Former is never current, even if the allow-list is edited ─────────────
