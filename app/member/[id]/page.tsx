@@ -12,6 +12,9 @@ import { loadDirectory } from "@/lib/directory/service";
 import { filtersFromParams, memberHref, searchHref } from "@/lib/directory/url";
 import { isTestingSession, testingModeEnabled } from "@/lib/testing-mode";
 import type { Member } from "@/lib/directory/types";
+import { fieldValuesFor, loadFormConfig } from "@/lib/forms/service";
+import { formForMember, visibleTo } from "@/lib/forms/parse";
+import { safeImageUrl, uploadsAllowed } from "@/lib/forms/image";
 
 /**
  * One member, at their own URL.
@@ -53,6 +56,7 @@ export default async function MemberPage({ params, searchParams }: Props) {
   const filters = filtersFromParams(sp);
   const backHref = searchHref(filters);
   const cameFromSearch = backHref !== "/";
+  const logo = await logoFor(member);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -84,10 +88,25 @@ export default async function MemberPage({ params, searchParams }: Props) {
         </Link>
 
         <div className="mt-4 rounded-xl border border-hair bg-panel p-6 shadow-sm sm:p-8">
-          <h1 className="text-2xl leading-tight sm:text-[28px]">{member.name}</h1>
-          {member.organization && (
-            <p className="mt-1 text-[16px] text-sub">{member.organization}</p>
-          )}
+          <div className="flex flex-col-reverse gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h1 className="text-2xl leading-tight sm:text-[28px]">{member.name}</h1>
+              {member.organization && (
+                <p className="mt-1 text-[16px] text-sub">{member.organization}</p>
+              )}
+            </div>
+            {logo && (
+              // Plain <img>, not next/image: the file is already a small
+              // image on a CDN, and next/image would need every host it might
+              // come from listed in next.config.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={logo}
+                alt={`${member.name} logo`}
+                className="h-16 w-auto max-w-[200px] shrink-0 object-contain object-left sm:object-right"
+              />
+            )}
+          </div>
 
           {/*
             A person admitted via a member firm is NOT an ITA member, and the
@@ -269,6 +288,30 @@ function Details({ member: m }: { member: Member }) {
       ))}
     </dl>
   );
+}
+
+/**
+ * The member's logo, if they have one on record — the first PUBLIC file field
+ * on their form that holds an https link (today: `logo`, organizations only;
+ * a related individual's narrowed form doesn't include it).
+ *
+ * Never allowed to take the page down: the member page worked before custom
+ * fields existed, and a hiccup reading the form tabs should cost the logo,
+ * not the whole profile.
+ */
+async function logoFor(member: Member): Promise<string | null> {
+  try {
+    const [config, values] = await Promise.all([loadFormConfig(), fieldValuesFor(member.id)]);
+    const fields = visibleTo(formForMember(config, member).fields, "public");
+    for (const f of fields) {
+      if (!uploadsAllowed(f)) continue;
+      const url = safeImageUrl(values.get(f.id)?.[0]);
+      if (url) return url;
+    }
+  } catch {
+    /* no logo, page still renders */
+  }
+  return null;
 }
 
 /** See app/page.tsx — an unconfigured AUTH_SECRET shouldn't take the page down. */

@@ -83,8 +83,14 @@ export function reconcile(
   }, 0);
 
   for (const field of fields) {
-    // A file input has nothing to store yet — see the note in the form.
-    if (field.dataType === "file") continue;
+    /*
+     * A file field is touched ONLY when the action put it in `answers` — a new
+     * upload (its URL) or an explicit Remove ([]). An untouched file input
+     * submits nothing, so for files "absent" must mean "keep what's there",
+     * never "cleared". Otherwise every save of any other field would blank the
+     * logo. Once present, it is an ordinary single-value overwrite.
+     */
+    if (field.dataType === "file" && !answers.has(field.id)) continue;
 
     const wanted = (answers.get(field.id) ?? [])
       .map((v) => v.trim())

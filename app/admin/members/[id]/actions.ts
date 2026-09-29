@@ -9,6 +9,8 @@ import { loadFormConfig } from "@/lib/forms/service";
 import { formForMember, visibleTo } from "@/lib/forms/parse";
 import { saveProfileValues } from "@/lib/forms/write";
 import type { Answers } from "@/lib/forms/values";
+import { checkImage, uploadsAllowed } from "@/lib/forms/image";
+import { blobConfigured, storeMemberImage } from "@/lib/forms/blob";
 
 /**
  * Save a member's answers.
@@ -47,7 +49,36 @@ export async function saveProfileAction(formData: FormData) {
 
   const answers: Answers = new Map();
   for (const field of fields) {
-    if (field.dataType === "file") continue;
+    if (field.dataType === "file") {
+      /*
+       * A file field is only put in `answers` when something HAPPENED to it —
+       * a new file picked, or "Remove" ticked. Absent from `answers` means
+       * "leave it alone" to the reconcile, which is what an untouched file
+       * input must mean: browsers never re-submit the file already on record.
+       */
+      if (!uploadsAllowed(field) || !blobConfigured()) continue;
+      if (formData.get(`f_${field.id}__remove`) === "1") {
+        answers.set(field.id, []);
+        continue;
+      }
+      const file = formData.get(`f_${field.id}`);
+      if (!(file instanceof File) || file.size === 0) continue;
+
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const checked = checkImage(bytes);
+      if (!checked.ok) {
+        redirect(`${back}?error=${encodeURIComponent(`${field.label}: ${checked.reason}`)}`);
+      }
+      let url: string;
+      try {
+        url = await storeMemberImage(profileId, field.id, bytes, checked.kind);
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
+        redirect(`${back}?error=${encodeURIComponent(`${field.label}: upload failed — ${detail}`)}`);
+      }
+      answers.set(field.id, [url]);
+      continue;
+    }
     // `getAll` so a multi-select's several checkboxes and a repeat field's
     // several inputs arrive as the set they are.
     const raw = formData.getAll(`f_${field.id}`).map((v) => String(v));

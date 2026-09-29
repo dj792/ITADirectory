@@ -13,6 +13,14 @@ import { CONTACT } from "@/lib/brand";
 import { Banner } from "../../ui";
 import SubmitButton from "../../SubmitButton";
 import { saveProfileAction } from "./actions";
+import {
+  ACCEPT_ATTR,
+  ACCEPT_HINT,
+  downloadUrl,
+  safeImageUrl,
+  uploadsAllowed,
+} from "@/lib/forms/image";
+import { blobConfigured } from "@/lib/forms/blob";
 
 /**
  * UPDATE PROFILE — the real editing form, rendered from the configuration.
@@ -67,6 +75,7 @@ export default async function UpdateProfilePage({
     else groups.push({ name, fields: [f] });
   }
 
+  const uploadsOn = blobConfigured();
   const answered = fields.filter((f) => (values.get(f.id) ?? []).length > 0).length;
 
   return (
@@ -122,7 +131,12 @@ export default async function UpdateProfilePage({
                 <h2 className="border-b border-hair pb-2 text-[16px]">{g.name}</h2>
                 <div className="mt-4 space-y-6">
                   {g.fields.map((f) => (
-                    <Field key={f.id} field={f} values={values.get(f.id) ?? []} />
+                    <Field
+                      key={f.id}
+                      field={f}
+                      values={values.get(f.id) ?? []}
+                      uploadsOn={uploadsOn}
+                    />
                   ))}
                 </div>
               </section>
@@ -232,7 +246,15 @@ function ProfileSummary({
 
 /* ------------------------------------------------------------- a field -- */
 
-function Field({ field: f, values }: { field: FormField; values: string[] }) {
+function Field({
+  field: f,
+  values,
+  uploadsOn,
+}: {
+  field: FormField;
+  values: string[];
+  uploadsOn: boolean;
+}) {
   const name = `f_${f.id}`;
   const id = `field-${f.id}`;
   return (
@@ -253,7 +275,7 @@ function Field({ field: f, values }: { field: FormField; values: string[] }) {
         {f.helpText && <span className="w-full text-sub">{f.helpText}</span>}
       </p>
       <div className="mt-2">
-        <Input field={f} name={name} id={id} values={values} />
+        <Input field={f} name={name} id={id} values={values} uploadsOn={uploadsOn} />
       </div>
     </div>
   );
@@ -268,11 +290,13 @@ function Input({
   name,
   id,
   values,
+  uploadsOn,
 }: {
   field: FormField;
   name: string;
   id: string;
   values: string[];
+  uploadsOn: boolean;
 }) {
   const first = values[0] ?? "";
 
@@ -369,19 +393,8 @@ function Input({
       );
 
     case "file":
-      /*
-       * Honest placeholder. A file has to live somewhere that isn't a
-       * spreadsheet cell, and no store is wired yet — so rather than render an
-       * input that silently drops what someone picks, the field says what it is
-       * waiting for. `values.ts` skips file fields entirely, so a save here can
-       * never blank one either.
-       */
       return (
-        <p className="rounded-md border border-dashed border-hair bg-panel2 px-3 py-3 text-[13px] text-sub">
-          File uploads aren’t switched on yet — {DATA_TYPE_LABELS.file.description}{" "}
-          These need somewhere to store the file itself; nothing is lost in the
-          meantime.
-        </p>
+        <FileInput field={f} name={name} id={id} current={first} uploadsOn={uploadsOn} />
       );
 
     case "number":
@@ -410,4 +423,96 @@ function Input({
         />
       );
   }
+}
+
+/**
+ * A file field: the file on record (preview, open, download), a picker to
+ * replace it, and a Remove box.
+ *
+ * Two honest placeholders instead of a picker, so nothing is ever picked and
+ * silently dropped:
+ *  - the field isn't PUBLIC (uploads are stored at public links — see
+ *    `uploadsAllowed`), which today is the IT org chart;
+ *  - no Blob store is connected yet (BLOB_READ_WRITE_TOKEN unset).
+ *
+ * An untouched picker submits nothing and the action leaves the stored value
+ * alone, so saving another field never blanks the logo.
+ */
+function FileInput({
+  field: f,
+  name,
+  id,
+  current,
+  uploadsOn,
+}: {
+  field: FormField;
+  name: string;
+  id: string;
+  current: string;
+  uploadsOn: boolean;
+}) {
+  const url = safeImageUrl(current);
+
+  if (!uploadsAllowed(f) || !uploadsOn) {
+    return (
+      <p className="rounded-md border border-dashed border-hair bg-panel2 px-3 py-3 text-[13px] text-sub">
+        {!uploadsAllowed(f)
+          ? "Uploads aren’t switched on for this question yet."
+          : "File uploads aren’t switched on yet — the file store still needs connecting."}{" "}
+        {DATA_TYPE_LABELS.file.description} Nothing is lost in the meantime.
+      </p>
+    );
+  }
+
+  return (
+    <div className="rounded-md border border-hair bg-panel2 p-3">
+      {url ? (
+        <div className="flex flex-wrap items-center gap-4">
+          {/* White tile: most logos are drawn for a white page. */}
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="flex h-20 w-44 items-center justify-center rounded border border-hair bg-white p-2"
+            title="Open full size in a new tab"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt={`${f.label} on file`} className="max-h-full max-w-full object-contain" />
+          </a>
+          <div className="flex flex-col gap-1 text-[13px]">
+            <a href={downloadUrl(url)} className="text-accent hover:underline">
+              Download
+            </a>
+            <a href={url} target="_blank" rel="noreferrer noopener" className="text-accent hover:underline">
+              Open full size ↗
+            </a>
+            <label className="mt-1 flex items-center gap-1.5 text-sub">
+              <input type="checkbox" name={`${name}__remove`} value="1" />
+              Remove on save
+            </label>
+          </div>
+        </div>
+      ) : current ? (
+        <p className="text-[13px] text-amber-700">
+          The value on record isn’t a usable image link: <span className="break-all font-mono">{current}</span>
+        </p>
+      ) : (
+        <p className="text-[13px] text-sub">No file on record yet.</p>
+      )}
+
+      <div className="mt-3">
+        <input
+          id={id}
+          name={name}
+          type="file"
+          accept={ACCEPT_ATTR}
+          className="block w-full text-[13px] text-fg file:mr-3 file:rounded-md file:border file:border-hair file:bg-white file:px-3 file:py-1.5 file:text-[13px] file:text-fg hover:file:border-accent"
+        />
+        <p className="mt-1 text-[12px] text-sub">
+          {url ? "Choose a file to replace it" : "Choose a file"} — {ACCEPT_HINT}. It is
+          uploaded when you press Save profile.
+        </p>
+      </div>
+    </div>
+  );
 }

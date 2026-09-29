@@ -464,6 +464,19 @@ async function probe(): Promise<Row[]> {
         : "NOT SET — /admin is closed to everyone. Set ADMIN_ACCESS_KEY and redeploy.",
   });
 
+  {
+    // Logo uploads. Unset ⇒ the profile editor shows a note instead of a file
+    // picker; nothing breaks. Vercel sets it when a Blob store is connected.
+    const blob = (process.env.BLOB_READ_WRITE_TOKEN ?? "").trim();
+    rows.push({
+      label: "File uploads (logos)",
+      ok: blob.length > 0,
+      detail: blob
+        ? "on · BLOB_READ_WRITE_TOKEN set — logos upload to Vercel Blob"
+        : "OFF — connect a PUBLIC Blob store in Vercel (Storage → Blob), which sets BLOB_READ_WRITE_TOKEN, then redeploy.",
+    });
+  }
+
   rows.push({
     label: "Source sheet",
     ok: null,

@@ -213,13 +213,34 @@ const run = (rows: Row[], fields: FormField[], a: Answers) =>
     r.appends.map((a) => a.ValueID).join(","));
 }
 
-/* ── File fields are skipped entirely ────────────────────────────────── */
+/* ── File fields: untouched unless the action says so ────────────────── */
 {
   nextRow = 0;
-  const rows = [row("110", "logo", "something-already-there")];
-  const r = run(rows, [field("logo", "file")], answers({ logo: [] }));
-  check("a file field is never written and never cleared",
+  const rows = [row("110", "logo", "https://x.blob.vercel-storage.com/old.png")];
+  const r = run(rows, [field("logo", "file")], answers({}));
+  check("a file field ABSENT from the answers is never written or cleared",
     r.edits.length === 0 && r.appends.length === 0);
+}
+{
+  nextRow = 0;
+  const rows = [row("110", "logo", "https://x.blob.vercel-storage.com/old.png")];
+  const r = run(rows, [field("logo", "file")], answers({ logo: ["https://x.blob.vercel-storage.com/new.png"] }));
+  check("a new upload overwrites the logo row in place",
+    r.appends.length === 0 &&
+    r.edits.some((e) => e.header === "Value" && e.value.endsWith("/new.png")));
+}
+{
+  nextRow = 0;
+  const rows = [row("110", "logo", "https://x.blob.vercel-storage.com/old.png")];
+  const r = run(rows, [field("logo", "file")], answers({ logo: [] }));
+  check("Remove retires the logo row rather than deleting it",
+    r.appends.length === 0 &&
+    r.edits.some((e) => e.header === "Active" && e.value === "FALSE"));
+}
+{
+  nextRow = 0;
+  const r = run([], [field("logo", "file")], answers({ logo: ["https://x.blob.vercel-storage.com/a.png"] }));
+  check("a first upload appends one row", r.appends.length === 1);
 }
 
 /* ── Whitespace ──────────────────────────────────────────────────────── */

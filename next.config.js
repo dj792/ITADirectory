@@ -2,6 +2,16 @@
 const nextConfig = {
   reactStrictMode: true,
 
+  experimental: {
+    /*
+     * Server actions refuse bodies over 1 MB by default, and the profile form
+     * carries the logo upload. The upload itself is capped at 2 MB
+     * (lib/forms/image.ts); this leaves room for the rest of the form and
+     * stays under Vercel's 4.5 MB request limit.
+     */
+    serverActions: { bodySizeLimit: "3mb" },
+  },
+
   async headers() {
     return [
       {
